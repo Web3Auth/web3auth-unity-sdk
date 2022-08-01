@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
@@ -64,13 +65,13 @@ public class Web3AuthSample : MonoBehaviour
                 }
             }
             // If using your own custom verifier, uncomment this code. 
-            /*
+            
             ,
             loginConfig = new Dictionary<string, LoginConfigItem>
             {
                 {"CUSTOM_VERIFIER", loginConfigItem}
             }
-            */
+            
         });
         web3Auth.onLogin += onLogin;
         web3Auth.onLogout += onLogout;
@@ -90,6 +91,14 @@ public class Web3AuthSample : MonoBehaviour
         loginResponseText.text = JsonConvert.SerializeObject(response, Formatting.Indented);
         var userInfo = JsonConvert.SerializeObject(response.userInfo, Formatting.Indented);
         Debug.Log(userInfo);
+
+        // If saving dappShare, uncomment this code. 
+
+        string dShare = response.userInfo.dappShare;
+        if (!string.IsNullOrEmpty(dShare)) 
+        {
+            File.WriteAllTextAsync("dappShare.txt", dShare);
+        }
 
         loginButton.gameObject.SetActive(false);
         verifierDropdown.gameObject.SetActive(false);
@@ -124,6 +133,17 @@ public class Web3AuthSample : MonoBehaviour
             loginProvider = selectedProvider
         };
 
+        // If saving dappShare, uncomment this code. 
+
+        if (File.Exists("dappShare.txt"))
+        {
+            var dappShare = File.ReadAllText("dappShare.txt");
+            if (!string.IsNullOrEmpty(dappShare))
+            {
+                options.dappShare = dappShare;
+            }
+        }
+
         if (selectedProvider == Provider.EMAIL_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
@@ -133,6 +153,7 @@ public class Web3AuthSample : MonoBehaviour
         }
 
         web3Auth.login(options);
+        Debug.Log(JsonConvert.SerializeObject(options, Formatting.Indented));
     }
 
     private void logout()
