@@ -11,7 +11,10 @@ public class Web3AuthSample : MonoBehaviour
     List<LoginVerifier> verifierList = new List<LoginVerifier> {
         new LoginVerifier("Google", Provider.GOOGLE),
         new LoginVerifier("Facebook", Provider.FACEBOOK),
-        new LoginVerifier("CUSTOM_VERIFIER", Provider.CUSTOM_VERIFIER),
+
+        // If using your own custom verifier, uncomment this code. 
+        //new LoginVerifier("CUSTOM_VERIFIER", Provider.CUSTOM_VERIFIER),
+
         new LoginVerifier("Twitch", Provider.TWITCH),
         new LoginVerifier("Discord", Provider.DISCORD),
         new LoginVerifier("Reddit", Provider.REDDIT),
@@ -46,7 +49,7 @@ public class Web3AuthSample : MonoBehaviour
         {
             verifier = "your_verifierid_from_web3auth_dashboard",
             typeOfLogin = TypeOfLogin.GOOGLE,
-            clientId = "your_clientid_from_google_or_etc"
+            clientId = "your_clientid_from_google_or_other_provider"
         };
 
         web3Auth = GetComponent<Web3Auth>();
@@ -65,13 +68,13 @@ public class Web3AuthSample : MonoBehaviour
                 }
             }
             // If using your own custom verifier, uncomment this code. 
-            
+            /*
             ,
             loginConfig = new Dictionary<string, LoginConfigItem>
             {
                 {"CUSTOM_VERIFIER", loginConfigItem}
             }
-            
+            */
         });
         web3Auth.onLogin += onLogin;
         web3Auth.onLogout += onLogout;
@@ -93,13 +96,13 @@ public class Web3AuthSample : MonoBehaviour
         Debug.Log(userInfo);
 
         // If saving dappShare, uncomment this code. 
-
+        /*
         string dShare = response.userInfo.dappShare;
         if (!string.IsNullOrEmpty(dShare)) 
         {
             File.WriteAllTextAsync("dappShare.txt", dShare);
         }
-
+        */
         loginButton.gameObject.SetActive(false);
         verifierDropdown.gameObject.SetActive(false);
         emailAddressField.gameObject.SetActive(false);
@@ -134,7 +137,7 @@ public class Web3AuthSample : MonoBehaviour
         };
 
         // If saving dappShare, uncomment this code. 
-
+        /*
         if (File.Exists("dappShare.txt"))
         {
             var dappShare = File.ReadAllText("dappShare.txt");
@@ -143,7 +146,8 @@ public class Web3AuthSample : MonoBehaviour
                 options.dappShare = dappShare;
             }
         }
-
+        */
+        
         if (selectedProvider == Provider.EMAIL_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
