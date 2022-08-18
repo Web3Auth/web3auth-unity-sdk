@@ -190,6 +190,7 @@ public class Web3Auth: MonoBehaviour
 
     private void request(string  path, LoginParams loginParams = null, Dictionary<string, object> extraParams = null)
     {
+        Debug.Log(redirectUri);
 #if UNITY_STANDALONE || UNITY_EDITOR
         this.initParams["redirectUrl"] = StartLocalWebserver();
 #endif
@@ -213,7 +214,7 @@ public class Web3Auth: MonoBehaviour
         uriBuilder.Path = path;
         uriBuilder.Fragment = hash;
 
-        Utils.LaunchUrl(uriBuilder.ToString());
+        Utils.LaunchUrl(uriBuilder.ToString(), this.initParams["redirectUrl"].ToString());
     }
 
     public void setResultUrl(Uri uri)

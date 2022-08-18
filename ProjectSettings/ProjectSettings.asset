@@ -157,7 +157,7 @@ PlayerSettings:
   applicationIdentifier:
     Android: org.torusresearch.web3authunitysdk
     Standalone: org.torusresearch.web3authunitysdk
-    iPhone: org.torusresearch.web3authunitysdk
+    iPhone: com.web3auth.sdkapp
   buildNumber:
     Standalone: 0
     iPhone: 0
@@ -219,7 +219,8 @@ PlayerSettings:
   iOSLaunchScreenCustomStoryboardPath: 
   iOSLaunchScreeniPadCustomStoryboardPath: 
   iOSDeviceRequirements: []
-  iOSURLSchemes: []
+  iOSURLSchemes:
+  - torusapp
   macOSURLSchemes: []
   iOSBackgroundModes: 0
   iOSMetalForceHardShadows: 0
@@ -707,7 +708,6 @@ PlayerSettings:
   ps4videoRecordingFeaturesUsed: 0
   ps4contentSearchFeaturesUsed: 0
   ps4CompatibilityPS5: 0
-  ps4AllowPS5Detection: 0
   ps4GPU800MHz: 1
   ps4attribEyeToEyeDistanceSettingVR: 0
   ps4IncludedModules: []

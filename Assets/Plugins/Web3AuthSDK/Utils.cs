@@ -14,11 +14,14 @@ public static class Utils
     extern static void launchUrl(string url);
     [DllImport("__Internal")]
     extern static void dismiss();
+    [DllImport("__Internal")]
+    extern static void _web3auth_launch(string url, string redirectUri);
 #endif
 
 
-    public static void LaunchUrl(string url)
+    public static void LaunchUrl(string url, string redirectUri = null)
     {
+        Debug.Log((new Uri(redirectUri)).Scheme);
 #if UNITY_EDITOR || UNITY_STANDALONE_WIN
         Application.OpenURL(url);
 #elif UNITY_ANDROID
@@ -30,7 +33,9 @@ public static class Utils
         }
 
 #elif UNITY_IOS
-    launchUrl(url);;
+    var uri = new Uri(redirectUri);
+    _web3auth_launch(url, uri.Scheme);
+    //launchUrl(url);
 #endif
     }
 
