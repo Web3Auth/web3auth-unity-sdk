@@ -886,8 +886,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3eab2a0bf902d6e4b9c2e968ad89f528, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  clientId: BJYIrHuzluClBK0vvTBUJ7kQylV_Dj3NA-X1q4Qvxs2Ay3DySkacOpoOb83lDTHJRVY83bFlYtt4p8pQR-oCYtw
-  redirectUri: com.web3auth.sdkapp://auth
+  clientId: BAwFgL-r7wzQKmtcdiz2uHJKNZdK7gzEf2q-m55xfzSZOw8jLOyIi4AVvvzaEQO5nv2dFLEmf9LBkF8kaq3aErg
+  redirectUri: torusapp://com.torus.Web3AuthUnity/auth
   network: 1
 --- !u!1 &529774071
 GameObject:

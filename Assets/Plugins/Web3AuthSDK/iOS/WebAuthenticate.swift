@@ -2,28 +2,32 @@ import AuthenticationServices
 import SafariServices
 import UIKit
 
+
 @objc public class WebAuthenticate: NSObject {
     public static let instance = WebAuthenticate();
+    public static var authSession: ASWebAuthenticationSession? = nil;
     
-    @objc public func call(_ url: String,_ redirectUri: String) {
-        let authSession = ASWebAuthenticationSession(
+    @objc public func call(_ url: String,_ redirectUri: String,_ objectName: String) {
+        WebAuthenticate.authSession = ASWebAuthenticationSession(
             url: URL(string: url)!, callbackURLScheme: redirectUri) { callbackURL, authError in
-                
-                print("hello world");
+                guard authError == nil, let callbackURL = callbackURL else {
+                    return
+                }
+
                 let unity = UnityFramework.getInstance();
-                unity?.sendMessageToGO(withName: "Web3Auth", functionName: "onDeepLinkActivated", message: callbackURL?.absoluteString);
+                unity?.sendMessageToGO(withName: objectName, functionName: "onDeepLinkActivated", message: callbackURL.absoluteString);
         }
         
         if #available(iOS 13.0, *) {
-            authSession.presentationContextProvider = self
-            authSession.prefersEphemeralWebBrowserSession = true
+            WebAuthenticate.authSession?.presentationContextProvider = self
+            WebAuthenticate.authSession?.prefersEphemeralWebBrowserSession = true
         }
         
-        authSession.start();
+        WebAuthenticate.authSession?.start();
     }
     
-    @objc public static func launch(_ url: String,_ redirectUri: String) {
-        instance.call(url, redirectUri);
+    @objc public static func launch(_ url: String,_ redirectUri: String,_ objectName: String) {
+        instance.call(url, redirectUri, objectName);
     }
 }
 
@@ -31,7 +35,6 @@ import UIKit
 @available(iOS 12.0, *)
 extension WebAuthenticate: ASWebAuthenticationPresentationContextProviding {
     public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        let window = UIApplication.shared.windows.first { $0.isKeyWindow }
-        return window ?? ASPresentationAnchor()
+        return UnityFramework.getInstance().appController().window;
     }
 }
