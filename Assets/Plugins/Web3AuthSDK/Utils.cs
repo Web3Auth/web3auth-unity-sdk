@@ -8,18 +8,13 @@ using UnityEngine;
 
 public static class Utils
 {
-    //https://qiita.com/lucifuges/items/b17d602417a9a249689f
 #if UNITY_IOS
     [DllImport("__Internal")]
-    extern static void launchUrl(string url);
-    [DllImport("__Internal")]
-    extern static void dismiss();
-    [DllImport("__Internal")]
-    extern static void _web3auth_launch(string url, string redirectUri);
+    extern static void web3auth_launch(string url, string redirectUri, string objectName);
 #endif
 
 
-    public static void LaunchUrl(string url, string redirectUri = null)
+    public static void LaunchUrl(string url, string redirectUri = null, string objectName = null)
     {
         Debug.Log((new Uri(redirectUri)).Scheme);
 #if UNITY_EDITOR || UNITY_STANDALONE_WIN
@@ -34,15 +29,7 @@ public static class Utils
 
 #elif UNITY_IOS
     var uri = new Uri(redirectUri);
-    _web3auth_launch(url, uri.Scheme);
-    //launchUrl(url);
-#endif
-    }
-
-    public static void Dismiss()
-    {
-#if UNITY_IOS && !UNITY_EDITOR
-    dismiss();
+    web3auth_launch(url, uri.Scheme, objectName);
 #endif
     }
 

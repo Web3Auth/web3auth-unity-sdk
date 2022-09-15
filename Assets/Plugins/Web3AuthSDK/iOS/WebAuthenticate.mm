@@ -10,7 +10,7 @@
 #import <UnityFramework/UnityFramework-Swift.h>
 
 extern "C" {
-    void _web3auth_launch(const char *url, const char *redirectUri) {
-        [WebAuthenticate launch:[NSString stringWithUTF8String:url] :[NSString stringWithUTF8String:redirectUri]];
+    void web3auth_launch(const char *url, const char *redirectUri, const char *objectName) {
+        [WebAuthenticate launch:[NSString stringWithUTF8String:url] :[NSString stringWithUTF8String:redirectUri] :[NSString stringWithUTF8String:objectName]];
     }
 }
