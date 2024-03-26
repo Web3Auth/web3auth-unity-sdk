@@ -40,6 +40,12 @@ public class Web3AuthSample : MonoBehaviour
     [SerializeField]
     Button logoutButton;
 
+    [SerializeField]
+    Button mfaSetupButton;
+
+    [SerializeField]
+    Button launchWalletServicesButton;
+
     void Start()
     {
         var loginConfigItem = new LoginConfigItem()
@@ -80,12 +86,17 @@ public class Web3AuthSample : MonoBehaviour
         });
         web3Auth.onLogin += onLogin;
         web3Auth.onLogout += onLogout;
+        web3Auth.onMFASetup += onMFASetup;
 
         emailAddressField.gameObject.SetActive(false);
         logoutButton.gameObject.SetActive(false);
+        mfaSetupButton.gameObject.SetActive(false);
+        launchWalletServicesButton.gameObject.SetActive(false);
 
         loginButton.onClick.AddListener(login);
         logoutButton.onClick.AddListener(logout);
+        mfaSetupButton.onClick.AddListener(enableMFA);
+        launchWalletServicesButton.onClick.AddListener(launchWalletServices);
 
         verifierDropdown.AddOptions(verifierList.Select(x => x.name).ToList());
         verifierDropdown.onValueChanged.AddListener(onVerifierDropDownChange);
@@ -101,6 +112,8 @@ public class Web3AuthSample : MonoBehaviour
         verifierDropdown.gameObject.SetActive(false);
         emailAddressField.gameObject.SetActive(false);
         logoutButton.gameObject.SetActive(true);
+        mfaSetupButton.gameObject.SetActive(true);
+        launchWalletServicesButton.gameObject.SetActive(true);
     }
 
     private void onLogout()
@@ -108,8 +121,14 @@ public class Web3AuthSample : MonoBehaviour
         loginButton.gameObject.SetActive(true);
         verifierDropdown.gameObject.SetActive(true);
         logoutButton.gameObject.SetActive(false);
+        mfaSetupButton.gameObject.SetActive(false);
+        launchWalletServicesButton.gameObject.SetActive(false);
 
         loginResponseText.text = "";
+    }
+
+    private void onMFASetup(bool response) {
+        Debug.Log("MFA Setup: " + response);
     }
 
 
@@ -144,5 +163,51 @@ public class Web3AuthSample : MonoBehaviour
     private void logout()
     {
         web3Auth.logout();
+    }
+
+    private void enableMFA()
+    {
+        var selectedProvider = verifierList[verifierDropdown.value].loginProvider;
+
+        var options = new LoginParams()
+        {
+            loginProvider = selectedProvider,
+            mfaLevel = MFALevel.MANDATORY
+        };
+
+        if (selectedProvider == Provider.EMAIL_PASSWORDLESS)
+        {
+            options.extraLoginOptions = new ExtraLoginOptions()
+            {
+                login_hint = emailAddressField.text
+            };
+        }
+        web3Auth.enableMFA(options);
+    }
+
+    private void launchWalletServices() {
+        var selectedProvider = verifierList[verifierDropdown.value].loginProvider;
+
+        var options = new LoginParams()
+        {
+            loginProvider = selectedProvider
+        };
+
+        if (selectedProvider == Provider.EMAIL_PASSWORDLESS)
+        {
+            options.extraLoginOptions = new ExtraLoginOptions()
+            {
+                login_hint = emailAddressField.text
+            };
+        }
+
+        var chainConfig = new ChainConfig()
+        {
+            chainId = "0x1",
+            rpcTarget = "https://mainnet.infura.io/v3/daeee53504be4cd3a997d4f2718d33e0",
+            ticker = "ETH",
+            chainNamespace = Web3Auth.ChainNamespace.EIP155
+        };
+        web3Auth.launchWalletServices(options, chainConfig);
     }
 }
