@@ -276,7 +276,7 @@ public class Web3Auth : MonoBehaviour
         paramMap["params"] = loginParams == null ? (object)new Dictionary<string, object>() : (object)loginParams;
         paramMap["actionType"] = path;
 
-        if (path == "enable_mfa")
+        if (path == "enable_mfa" || path == "manage_mfa")
         {
             string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             paramMap["sessionId"] = sessionId;
@@ -525,6 +525,32 @@ public class Web3Auth : MonoBehaviour
                    }
             }
             processRequest("enable_mfa", loginParams);
+        }
+        else
+        {
+            throw new Exception("SessionId not found. Please login first.");
+        }
+    }
+
+    public void manageMFA(LoginParams loginParams)
+    {
+        if(web3AuthResponse.userInfo.isMfaEnabled == false)
+        {
+            throw new Exception("MFA is not enabled. Please enable MFA first.");
+        }
+        string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            if (web3AuthOptions.loginConfig != null)
+            {
+                var loginConfigItem = web3AuthOptions.loginConfig?.Values.First();
+                var share = KeyStoreManagerUtils.getPreferencesData(loginConfigItem?.verifier);
+                if (!string.IsNullOrEmpty(share))
+                   {
+                       loginParams.dappShare = share;
+                   }
+            }
+            processRequest("manage_mfa", loginParams);
         }
         else
         {
