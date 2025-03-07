@@ -147,6 +147,8 @@ public class Web3Auth : MonoBehaviour
             if (this.web3AuthOptions.sessionTime != null)
                 this.initParams["sessionTime"] = this.web3AuthOptions.sessionTime;
 
+            if (this.web3AuthOptions.dashboardUrl != null)
+                this.initParams["dashboardUrl"] = this.web3AuthOptions.dashboardUrl;
         }
     }
 
@@ -281,15 +283,32 @@ public class Web3Auth : MonoBehaviour
 
         loginParams.redirectUrl = loginParams.redirectUrl ?? new Uri(this.initParams["redirectUrl"].ToString());
         //Debug.Log("loginParams.redirectUrl: =>" + loginParams.redirectUrl);
+        //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(this.initParams));
+        var sessionId = KeyStoreManagerUtils.generateRandomSessionKey();
+        if(path == "manage_mfa") {
+            loginParams.redirectUrl = new Uri(this.initParams["dashboardUrl"].ToString());
+            this.initParams["redirectUrl"] = new Uri(this.initParams["dashboardUrl"].ToString());
+            var loginIdObject = new Dictionary<string, string>
+            {
+                { "loginId", sessionId }
+            };
+            string loginIdBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(loginIdObject, Formatting.None,
+                new JsonSerializerSettings
+                {
+                    NullValueHandling = NullValueHandling.Ignore
+                })));
+            loginParams.appState = loginIdBase64;
+        }
+
         Dictionary<string, object> paramMap = new Dictionary<string, object>();
         paramMap["options"] = this.initParams;
         paramMap["params"] = loginParams == null ? (object)new Dictionary<string, object>() : (object)loginParams;
         paramMap["actionType"] = path;
 
-        if (path == "enable_mfa")
+        if (path == "enable_mfa" || path == "manage_mfa")
         {
-            string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
-            paramMap["sessionId"] = sessionId;
+            string savedSessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
+            paramMap["sessionId"] = savedSessionId;
         }
 
         //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(paramMap));
@@ -297,7 +316,7 @@ public class Web3Auth : MonoBehaviour
             new JsonSerializerSettings
             {
                 NullValueHandling = NullValueHandling.Ignore
-            }), 600, "*");
+            }), 600, "*", sessionId);
 
         if (!string.IsNullOrEmpty(loginId))
         {
@@ -353,11 +372,12 @@ public class Web3Auth : MonoBehaviour
             paramMap["options"] = this.initParams;
 
             //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(paramMap));
+            var newSessionId = KeyStoreManagerUtils.generateRandomSessionKey();
             string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
                 new JsonSerializerSettings
                 {
                     NullValueHandling = NullValueHandling.Ignore
-                }), 600, "*");
+                }), 600, "*", newSessionId);
 
             if (!string.IsNullOrEmpty(loginId))
             {
@@ -549,6 +569,32 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
+    public void manageMFA(LoginParams loginParams)
+    {
+        if(web3AuthResponse.userInfo.isMfaEnabled == false)
+        {
+            throw new Exception("MFA is not enabled. Please enable MFA first.");
+        }
+        string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
+        if (!string.IsNullOrEmpty(sessionId))
+        {
+            if (web3AuthOptions.loginConfig != null)
+            {
+                var loginConfigItem = web3AuthOptions.loginConfig?.Values.First();
+                var share = KeyStoreManagerUtils.getPreferencesData(loginConfigItem?.verifier);
+                if (!string.IsNullOrEmpty(share))
+                   {
+                       loginParams.dappShare = share;
+                   }
+            }
+            processRequest("manage_mfa", loginParams);
+        }
+        else
+        {
+            throw new Exception("SessionId not found. Please login first.");
+        }
+    }
+
     public async void request(ChainConfig chainConfig, string method, JArray requestParams, string path = "wallet/request") {
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
@@ -569,11 +615,12 @@ public class Web3Auth : MonoBehaviour
                     Dictionary<string, object> paramMap = new Dictionary<string, object>();
                     paramMap["options"] = this.initParams;
 
+                    var newSessionId = KeyStoreManagerUtils.generateRandomSessionKey();
                     string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
                         new JsonSerializerSettings
                         {
                             NullValueHandling = NullValueHandling.Ignore
-                        }), 600, "*");
+                        }), 600, "*", newSessionId);
 
                     if (!string.IsNullOrEmpty(loginId))
                     {
@@ -750,10 +797,10 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    private async Task<string> createSession(string data, long sessionTime, string allowedOrigin)
+    private async Task<string> createSession(string data, long sessionTime, string allowedOrigin, string sessionId)
     {
         TaskCompletionSource<string> createSessionResponse = new TaskCompletionSource<string>();
-        var newSessionKey = KeyStoreManagerUtils.generateRandomSessionKey();
+        var newSessionKey = sessionId;
         // Debug.Log("newSessionKey =>" + newSessionKey);
         var ephemKey = KeyStoreManagerUtils.getPubKey(newSessionKey);
         var ivKey = KeyStoreManagerUtils.generateRandomBytes();
