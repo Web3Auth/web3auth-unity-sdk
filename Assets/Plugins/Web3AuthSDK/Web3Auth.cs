@@ -285,12 +285,19 @@ public class Web3Auth : MonoBehaviour
         //Debug.Log("loginParams.redirectUrl: =>" + loginParams.redirectUrl);
         //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(this.initParams));
         var sessionId = KeyStoreManagerUtils.generateRandomSessionKey();
-        if(path == "manage_mfa") {
+        //string _extraLoginOptions = JsonConvert.SerializeObject(extraLoginOptions);
+        Dictionary<string, object> paramMap = new Dictionary<string, object>();
+        paramMap["options"] = this.initParams;
+        paramMap["actionType"] = path;
+
+        if(path == "manage_mfa" || path == "enable_mfa") {
+            loginParams.dappUrl = this.initParams["redirectUrl"].ToString();
             loginParams.redirectUrl = new Uri(this.initParams["dashboardUrl"].ToString());
             this.initParams["redirectUrl"] = new Uri(this.initParams["dashboardUrl"].ToString());
             var loginIdObject = new Dictionary<string, string>
             {
-                { "loginId", sessionId }
+                { "loginId", sessionId },
+                { "platform", "unity" }
             };
             string loginIdBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(loginIdObject, Formatting.None,
                 new JsonSerializerSettings
@@ -298,18 +305,30 @@ public class Web3Auth : MonoBehaviour
                     NullValueHandling = NullValueHandling.Ignore
                 })));
             loginParams.appState = loginIdBase64;
-        }
-
-        Dictionary<string, object> paramMap = new Dictionary<string, object>();
-        paramMap["options"] = this.initParams;
-        paramMap["params"] = loginParams == null ? (object)new Dictionary<string, object>() : (object)loginParams;
-        paramMap["actionType"] = path;
-
-        if (path == "enable_mfa" || path == "manage_mfa")
-        {
+            loginParams.mfaLevel = MFALevel.MANDATORY;
+            ExtraLoginOptions extraLoginOptions = new ExtraLoginOptions();
+            if (loginParams?.extraLoginOptions != null)
+            {
+                extraLoginOptions = loginParams.extraLoginOptions;
+            }
+            else
+            {
+                extraLoginOptions = this.initParams["extraLoginOptions"] as ExtraLoginOptions;
+            }
+            if (extraLoginOptions != null && web3AuthResponse?.userInfo?.verifierId != null)
+            {
+                extraLoginOptions.login_hint = web3AuthResponse.userInfo.verifierId;
+            }
+            loginParams.extraLoginOptions = extraLoginOptions;
+            if (Enum.TryParse(web3AuthResponse.userInfo.typeOfLogin, true, out Provider provider))
+            {
+                loginParams.loginProvider = provider;
+            }
             string savedSessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             paramMap["sessionId"] = savedSessionId;
         }
+
+        paramMap["params"] = loginParams == null ? (object)new Dictionary<string, object>() : (object)loginParams;
 
         //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(paramMap));
         string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
@@ -437,6 +456,10 @@ public class Web3Auth : MonoBehaviour
         Uri newUri = new Uri(newUriString);
         string b64Params = getQueryParamValue(newUri, "b64Params");
         string decodedString = decodeBase64Params(b64Params);
+        if (decodedString.Contains("actionType"))
+        {
+            return;
+        }
         if(isRequestResponse) {
             try
             {
