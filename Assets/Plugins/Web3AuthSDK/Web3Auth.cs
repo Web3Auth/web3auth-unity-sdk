@@ -286,9 +286,6 @@ public class Web3Auth : MonoBehaviour
         //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(this.initParams));
         var sessionId = KeyStoreManagerUtils.generateRandomSessionKey();
         //string _extraLoginOptions = JsonConvert.SerializeObject(extraLoginOptions);
-        Dictionary<string, object> paramMap = new Dictionary<string, object>();
-        paramMap["options"] = this.initParams;
-        paramMap["actionType"] = path;
 
         if(path == "manage_mfa" || path == "enable_mfa") {
             loginParams.dappUrl = this.initParams["redirectUrl"].ToString();
@@ -324,11 +321,18 @@ public class Web3Auth : MonoBehaviour
             {
                 loginParams.loginProvider = provider;
             }
-            string savedSessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
-            paramMap["sessionId"] = savedSessionId;
         }
 
-        paramMap["params"] = loginParams == null ? (object)new Dictionary<string, object>() : (object)loginParams;
+       Dictionary<string, object> paramMap = new Dictionary<string, object>();
+       paramMap["options"] = this.initParams;
+       paramMap["params"] = loginParams == null ? (object)new Dictionary<string, object>() : (object)loginParams;
+       paramMap["actionType"] = path;
+
+       if (path == "enable_mfa" || path == "manage_mfa")
+       {
+            string savedSessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
+            paramMap["sessionId"] = savedSessionId;
+       }
 
         //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(paramMap));
         string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
