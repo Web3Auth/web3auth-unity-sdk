@@ -39,4 +39,21 @@ public class Web3AuthOptions {
     public int sessionTime { get; set; } = 86400;
     public ChainConfig? chainConfig { get; set; }
     public Dictionary<string, string> originData { get; set; } = null;
+
+    public string dashboardUrl
+    {
+        get
+        {
+            return buildEnv switch
+            {
+                Web3Auth.BuildEnv.STAGING => $"https://staging-account.web3auth.io/{authDashboardVersion}/{walletAccountConstant}",
+                Web3Auth.BuildEnv.TESTING => $"https://develop-account.web3auth.io/{walletAccountConstant}",
+                _ => $"https://account.web3auth.io/{authDashboardVersion}/{walletAccountConstant}"
+            };
+        }
+        set { }
+    }
+
+    private const string authDashboardVersion = "v9";
+    private const string walletAccountConstant = "wallet/account";
 }
