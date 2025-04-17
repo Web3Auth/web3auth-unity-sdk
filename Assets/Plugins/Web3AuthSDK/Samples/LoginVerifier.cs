@@ -1,10 +1,10 @@
 ﻿public class LoginVerifier {
     public string name { get; set; }
-    public Provider loginProvider { get; set; }
+    public AUTH_CONNECTION authConnection { get; set; }
 
-    public LoginVerifier(string name, Provider loginProvider)
+    public LoginVerifier(string name, AUTH_CONNECTION authConnection)
     {
         this.name = name;
-        this.loginProvider = loginProvider;
+        this.authConnection = authConnection;
     }
 }

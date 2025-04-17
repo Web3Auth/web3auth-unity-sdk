@@ -17,20 +17,20 @@ using Org.BouncyCastle.Crypto.Digests;
 public class Web3AuthSample : MonoBehaviour
 {
     List<LoginVerifier> verifierList = new List<LoginVerifier> {
-        new LoginVerifier("Google", Provider.GOOGLE),
-        new LoginVerifier("Facebook", Provider.FACEBOOK),
+        new LoginVerifier("Google", AUTH_CONNECTION.GOOGLE),
+        new LoginVerifier("Facebook", AUTH_CONNECTION.FACEBOOK),
         // new LoginVerifier("CUSTOM_VERIFIER", Provider.CUSTOM_VERIFIER),
-        new LoginVerifier("Twitch", Provider.TWITCH),
-        new LoginVerifier("Discord", Provider.DISCORD),
-        new LoginVerifier("Reddit", Provider.REDDIT),
-        new LoginVerifier("Apple", Provider.APPLE),
-        new LoginVerifier("Github", Provider.GITHUB),
-        new LoginVerifier("LinkedIn", Provider.LINKEDIN),
-        new LoginVerifier("Twitter", Provider.TWITTER),
-        new LoginVerifier("Line", Provider.LINE),
-        new LoginVerifier("Email Passwordless", Provider.EMAIL_PASSWORDLESS),
-        new LoginVerifier("SMS Passwordless", Provider.SMS_PASSWORDLESS),
-        new LoginVerifier("Farcaster", Provider.FARCASTER),
+        new LoginVerifier("Twitch", AUTH_CONNECTION.TWITCH),
+        new LoginVerifier("Discord", AUTH_CONNECTION.DISCORD),
+        new LoginVerifier("Reddit", AUTH_CONNECTION.REDDIT),
+        new LoginVerifier("Apple", AUTH_CONNECTION.APPLE),
+        new LoginVerifier("Github", AUTH_CONNECTION.GITHUB),
+        new LoginVerifier("LinkedIn", AUTH_CONNECTION.LINKEDIN),
+        new LoginVerifier("Twitter", AUTH_CONNECTION.TWITTER),
+        new LoginVerifier("Line", AUTH_CONNECTION.LINE),
+        new LoginVerifier("Email Passwordless", AUTH_CONNECTION.EMAIL_PASSWORDLESS),
+        new LoginVerifier("SMS Passwordless", AUTH_CONNECTION.SMS_PASSWORDLESS),
+        new LoginVerifier("Farcaster", AUTH_CONNECTION.FARCASTER),
     };
 
     Web3Auth web3Auth;
@@ -64,12 +64,13 @@ public class Web3AuthSample : MonoBehaviour
 
     void Start()
     {
-        var loginConfigItem = new LoginConfigItem()
+        var authConnectionItem = new AuthConnectionConfig()
         {
-            verifier = "your_verifierid_from_web3auth_dashboard",
-            typeOfLogin = TypeOfLogin.GOOGLE,
+            authConnectionId = "your_verifierid_from_web3auth_dashboard", // corresponds to `verifier`
+            authConnection = AuthConnection.GOOGLE,
             clientId = "your_clientId_from_web3auth_dashboard"
         };
+        var authConnectionConfig = new List<AuthConnectionConfig> { authConnectionItem };
 
         web3Auth = GetComponent<Web3Auth>();
         web3Auth.setOptions(new Web3AuthOptions()
@@ -95,7 +96,7 @@ public class Web3AuthSample : MonoBehaviour
             }
             */
             clientId = "BFuUqebV5I8Pz5F7a5A2ihW7YVmbv_OHXnHYDv6OltAD5NGr6e-ViNvde3U4BHdn6HvwfkgobhVu4VwC-OSJkik",
-            buildEnv = BuildEnv.PRODUCTION,
+            buildEnv = BuildEnv.TESTING,
             redirectUrl = new Uri("torusapp://com.torus.Web3AuthUnity"),
             network = Web3Auth.Network.SAPPHIRE_DEVNET,
             sessionTime = 86400
@@ -168,7 +169,7 @@ public class Web3AuthSample : MonoBehaviour
 
     private void onVerifierDropDownChange(int selectedIndex)
     {
-        if (verifierList[selectedIndex].loginProvider == Provider.EMAIL_PASSWORDLESS)
+        if (verifierList[selectedIndex].authConnection == AUTH_CONNECTION.EMAIL_PASSWORDLESS)
             emailAddressField.gameObject.SetActive(true);
         else
             emailAddressField.gameObject.SetActive(false);
@@ -176,21 +177,21 @@ public class Web3AuthSample : MonoBehaviour
 
     private void login()
     {
-        var selectedProvider = verifierList[verifierDropdown.value].loginProvider;
+        var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
         var options = new LoginParams()
         {
-            loginProvider = selectedProvider
+            authConnection = selectedProvider
         };
 
-        if (selectedProvider == Provider.EMAIL_PASSWORDLESS)
+        if (selectedProvider == AUTH_CONNECTION.EMAIL_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
             {
                 login_hint = emailAddressField.text
             };
         }
-        if (selectedProvider == Provider.SMS_PASSWORDLESS)
+        if (selectedProvider == AUTH_CONNECTION.SMS_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
             {
@@ -208,15 +209,15 @@ public class Web3AuthSample : MonoBehaviour
 
     private void enableMFA()
     {
-        var selectedProvider = verifierList[verifierDropdown.value].loginProvider;
+        var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
         var options = new LoginParams()
         {
-            loginProvider = selectedProvider,
+            authConnection = selectedProvider,
             mfaLevel = MFALevel.MANDATORY
         };
 
-        if (selectedProvider == Provider.EMAIL_PASSWORDLESS)
+        if (selectedProvider == AUTH_CONNECTION.EMAIL_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
             {
@@ -228,15 +229,15 @@ public class Web3AuthSample : MonoBehaviour
 
     private void manageMFA()
     {
-        var selectedProvider = verifierList[verifierDropdown.value].loginProvider;
+        var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
         var options = new LoginParams()
         {
-            loginProvider = selectedProvider,
+            authConnection = selectedProvider,
             mfaLevel = MFALevel.MANDATORY
         };
 
-        if (selectedProvider == Provider.EMAIL_PASSWORDLESS)
+        if (selectedProvider == AUTH_CONNECTION.EMAIL_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
             {
@@ -247,7 +248,7 @@ public class Web3AuthSample : MonoBehaviour
     }
 
     private void launchWalletServices() {
-        var selectedProvider = verifierList[verifierDropdown.value].loginProvider;
+        var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
         var chainConfig = new ChainConfig()
         {
@@ -260,7 +261,7 @@ public class Web3AuthSample : MonoBehaviour
     }
 
     private void request() {
-        var selectedProvider = verifierList[verifierDropdown.value].loginProvider;
+        var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
         var chainConfig = new ChainConfig()
         {

@@ -3,7 +3,7 @@ using Newtonsoft.Json.Converters;
 using System.Runtime.Serialization;
 
 [JsonConverter(typeof(StringEnumConverter))]
-public enum Provider
+public enum AUTH_CONNECTION
 {
     [EnumMember(Value = "google")]
     GOOGLE,

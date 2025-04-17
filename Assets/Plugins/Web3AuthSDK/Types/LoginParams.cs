@@ -2,7 +2,7 @@
 
 public class LoginParams
 {
-    public Provider loginProvider { get; set; }
+    public AUTH_CONNECTION authConnection { get; set; }
     public string dappShare { get; set; }
     public ExtraLoginOptions extraLoginOptions { get; set; }
     public Uri redirectUrl { get; set; }

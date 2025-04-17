@@ -1,6 +1,6 @@
-﻿public class LoginConfigItem {
-    public string verifier { get; set; }
-    public TypeOfLogin typeOfLogin { get; set; }
+﻿public class AuthConnectionConfig {
+    public string authConnectionId { get; set; }
+    public AuthConnection authConnection { get; set; }
     public string name { get; set; }
     public string description { get; set; }
     public string clientId { get; set; }
