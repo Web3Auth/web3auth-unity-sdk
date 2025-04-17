@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 #nullable enable
 public class ChainConfig {
-    public Web3Auth.ChainNamespace? chainNamespace { get; set; } = Web3Auth.ChainNamespace.EIP155;
+    public Web3Auth.ChainNamespace? chainNamespace { get; set; } = Web3Auth.ChainNamespace.eip155;
     public int decimals { get; set; } = 18;
     public string blockExplorerUrl { get; set; } = null;
     public string chainId { get; set; }

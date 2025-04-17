@@ -20,7 +20,7 @@ public class Web3Auth : MonoBehaviour
 
     public enum ChainNamespace
     {
-        EIP155, SOLANA
+        eip155, solana
     }
 
     public enum BuildEnv
@@ -353,7 +353,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void launchWalletServices(ChainConfig chainConfig, string path = "wallet")
+    public async void launchWalletServices(List<ChainConfig> chainConfig, string chainId, string path = "wallet")
     {
             string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             if (!string.IsNullOrEmpty(sessionId))
@@ -370,7 +370,13 @@ public class Web3Auth : MonoBehaviour
             this.initParams["redirectUrl"] = Utils.GetCurrentURL();
     #endif
 
-            this.initParams["chainConfig"] = chainConfig;
+            string chainsJson = JsonConvert.SerializeObject(chainConfig, Formatting.None, new JsonSerializerSettings
+            {
+                Converters = new List<JsonConverter> { new StringEnumConverter() },
+                    NullValueHandling = NullValueHandling.Ignore
+            });
+            this.initParams["chains"] = chainsJson;
+            this.initParams["chainId"] = chainId;
             Dictionary<string, object> paramMap = new Dictionary<string, object>();
             paramMap["options"] = this.initParams;
 
@@ -607,7 +613,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void request(ChainConfig chainConfig, string method, JArray requestParams, string path = "wallet/request") {
+    public async void request(List<ChainConfig> chainConfig, string chainId, string method, JArray requestParams, string path = "wallet/request") {
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
@@ -623,7 +629,13 @@ public class Web3Auth : MonoBehaviour
                     this.initParams["redirectUrl"] = Utils.GetCurrentURL();
             #endif
 
-                    this.initParams["chainConfig"] = chainConfig;
+                    string chainsJson = JsonConvert.SerializeObject(chainConfig, Formatting.None, new JsonSerializerSettings
+                    {
+                        Converters = new List<JsonConverter> { new StringEnumConverter() },
+                            NullValueHandling = NullValueHandling.Ignore
+                    });
+                     this.initParams["chains"] = chainsJson;
+                    this.initParams["chainId"] = chainId;
                     Dictionary<string, object> paramMap = new Dictionary<string, object>();
                     paramMap["options"] = this.initParams;
 
