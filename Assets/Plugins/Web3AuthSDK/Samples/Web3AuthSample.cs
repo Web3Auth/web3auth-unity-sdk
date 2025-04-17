@@ -95,6 +95,15 @@ public class Web3AuthSample : MonoBehaviour
                 {"CUSTOM_VERIFIER", loginConfigItem}
             }
             */
+            authConnectionConfig = new List<AuthConnectionConfig>()
+            {
+                new AuthConnectionConfig()
+                {
+                    authConnectionId = "web3auth-auth0-email-passwordless-sapphire-devnet",
+                    authConnection = AuthConnection.JWT,
+                    clientId = "d84f6xvbdV75VTGmHiMWfZLeSPk8M07C"
+                }
+            },
             clientId = "BFuUqebV5I8Pz5F7a5A2ihW7YVmbv_OHXnHYDv6OltAD5NGr6e-ViNvde3U4BHdn6HvwfkgobhVu4VwC-OSJkik",
             buildEnv = BuildEnv.TESTING,
             redirectUrl = new Uri("torusapp://com.torus.Web3AuthUnity"),
@@ -255,9 +264,14 @@ public class Web3AuthSample : MonoBehaviour
             chainId = "0x1",
             rpcTarget = "https://mainnet.infura.io/v3/daeee53504be4cd3a997d4f2718d33e0",
             ticker = "ETH",
-            chainNamespace = Web3Auth.ChainNamespace.EIP155
+            chainNamespace = Web3Auth.ChainNamespace.eip155
         };
-        web3Auth.launchWalletServices(chainConfig);
+        var chainConfigList = new List<ChainConfig> { chainConfig };
+        foreach (var config in chainConfigList)
+        {
+            Debug.Log($"Chain ID: {config.chainId}, RPC Target: {config.rpcTarget}, Ticker: {config.ticker}, Namespace: {config.chainNamespace}");
+        }
+        web3Auth.launchWalletServices(chainConfigList, "0x1");
     }
 
     private void request() {
@@ -267,8 +281,9 @@ public class Web3AuthSample : MonoBehaviour
         {
             chainId = "0x89",
             rpcTarget = "https://1rpc.io/matic",
-            chainNamespace = Web3Auth.ChainNamespace.EIP155
+            chainNamespace = Web3Auth.ChainNamespace.eip155
         };
+        var chainConfigList = new List<ChainConfig> { chainConfig };
 
         JArray paramsArray = new JArray
         {
@@ -277,7 +292,7 @@ public class Web3AuthSample : MonoBehaviour
             "Android"
         };
 
-        web3Auth.request(chainConfig, "personal_sign", paramsArray);
+        web3Auth.request(chainConfigList, "0x89", "personal_sign", paramsArray);
     }
 
     public string getPublicAddressFromPrivateKey(string privateKeyHex)
