@@ -32,9 +32,9 @@ public class Web3AuthOptions {
          set { }
     }
     public WhiteLabelData? whiteLabel { get; set; }
-    public Dictionary<string, LoginConfigItem>? loginConfig { get; set; }
+    public List<AuthConnectionConfig>? authConnectionConfig { get; set; }
     public bool? useCoreKitKey { get; set; } = false;
-    public Web3Auth.ChainNamespace? chainNamespace { get; set; } = Web3Auth.ChainNamespace.EIP155;
+    public Web3Auth.ChainNamespace? chainNamespace { get; set; } = Web3Auth.ChainNamespace.eip155;
     public MfaSettings? mfaSettings { get; set; } = null;
     public int sessionTime { get; set; } = 86400;
     public ChainConfig? chainConfig { get; set; }

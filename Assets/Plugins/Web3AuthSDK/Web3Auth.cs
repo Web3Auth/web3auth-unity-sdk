@@ -20,7 +20,7 @@ public class Web3Auth : MonoBehaviour
 
     public enum ChainNamespace
     {
-        EIP155, SOLANA
+        eip155, solana
     }
 
     public enum BuildEnv
@@ -125,8 +125,8 @@ public class Web3Auth : MonoBehaviour
             if (this.web3AuthOptions.whiteLabel != null)
                 this.initParams["whiteLabel"] = JsonConvert.SerializeObject(this.web3AuthOptions.whiteLabel, settings);
 
-            if (this.web3AuthOptions.loginConfig != null)
-                this.initParams["loginConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.loginConfig, settings);
+            if (this.web3AuthOptions.authConnectionConfig != null)
+                this.initParams["authConnectionConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.authConnectionConfig, settings);
 
             if (this.web3AuthOptions.clientId != null)
                 this.initParams["clientId"] = this.web3AuthOptions.clientId;
@@ -353,7 +353,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void launchWalletServices(ChainConfig chainConfig, string path = "wallet")
+    public async void launchWalletServices(List<ChainConfig> chainConfig, string chainId, string path = "wallet")
     {
             string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             if (!string.IsNullOrEmpty(sessionId))
@@ -370,7 +370,13 @@ public class Web3Auth : MonoBehaviour
             this.initParams["redirectUrl"] = Utils.GetCurrentURL();
     #endif
 
-            this.initParams["chainConfig"] = chainConfig;
+            string chainsJson = JsonConvert.SerializeObject(chainConfig, Formatting.None, new JsonSerializerSettings
+            {
+                Converters = new List<JsonConverter> { new StringEnumConverter() },
+                    NullValueHandling = NullValueHandling.Ignore
+            });
+            this.initParams["chains"] = chainsJson;
+            this.initParams["chainId"] = chainId;
             Dictionary<string, object> paramMap = new Dictionary<string, object>();
             paramMap["options"] = this.initParams;
 
@@ -524,10 +530,10 @@ public class Web3Auth : MonoBehaviour
 
     public void login(LoginParams loginParams)
     {
-        if (web3AuthOptions.loginConfig != null)
+        if (web3AuthOptions.authConnectionConfig != null)
         {
-            var loginConfigItem = web3AuthOptions.loginConfig?.Values.First();
-            var share = KeyStoreManagerUtils.getPreferencesData(loginConfigItem?.verifier);
+            var authConnectionItem = web3AuthOptions.authConnectionConfig?.FirstOrDefault();
+            var share = KeyStoreManagerUtils.getPreferencesData(authConnectionItem?.authConnectionId);
 
             if (!string.IsNullOrEmpty(share))
             {
@@ -564,10 +570,10 @@ public class Web3Auth : MonoBehaviour
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
-            if (web3AuthOptions.loginConfig != null)
+            if (web3AuthOptions.authConnectionConfig != null)
             {
-                var loginConfigItem = web3AuthOptions.loginConfig?.Values.First();
-                var share = KeyStoreManagerUtils.getPreferencesData(loginConfigItem?.verifier);
+                var authConnectionItem = web3AuthOptions.authConnectionConfig?.FirstOrDefault();
+                var share = KeyStoreManagerUtils.getPreferencesData(authConnectionItem?.authConnectionId);
                 if (!string.IsNullOrEmpty(share))
                    {
                        loginParams.dappShare = share;
@@ -590,10 +596,10 @@ public class Web3Auth : MonoBehaviour
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
-            if (web3AuthOptions.loginConfig != null)
+            if (web3AuthOptions.authConnectionConfig != null)
             {
-                var loginConfigItem = web3AuthOptions.loginConfig?.Values.First();
-                var share = KeyStoreManagerUtils.getPreferencesData(loginConfigItem?.verifier);
+                var authConnectionItem = web3AuthOptions.authConnectionConfig?.FirstOrDefault();
+                var share = KeyStoreManagerUtils.getPreferencesData(authConnectionItem?.authConnectionId);
                 if (!string.IsNullOrEmpty(share))
                    {
                        loginParams.dappShare = share;
@@ -607,7 +613,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void request(ChainConfig chainConfig, string method, JArray requestParams, string path = "wallet/request") {
+    public async void request(List<ChainConfig> chainConfig, string chainId, string method, JArray requestParams, string path = "wallet/request") {
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
@@ -623,7 +629,13 @@ public class Web3Auth : MonoBehaviour
                     this.initParams["redirectUrl"] = Utils.GetCurrentURL();
             #endif
 
-                    this.initParams["chainConfig"] = chainConfig;
+                    string chainsJson = JsonConvert.SerializeObject(chainConfig, Formatting.None, new JsonSerializerSettings
+                    {
+                        Converters = new List<JsonConverter> { new StringEnumConverter() },
+                            NullValueHandling = NullValueHandling.Ignore
+                    });
+                     this.initParams["chains"] = chainsJson;
+                    this.initParams["chainId"] = chainId;
                     Dictionary<string, object> paramMap = new Dictionary<string, object>();
                     paramMap["options"] = this.initParams;
 
@@ -730,7 +742,7 @@ public class Web3Auth : MonoBehaviour
                         if (!string.IsNullOrEmpty(web3AuthResponse.userInfo?.dappShare))
                         {
                             KeyStoreManagerUtils.savePreferenceData(
-                                        web3AuthResponse.userInfo?.verifier, web3AuthResponse.userInfo?.dappShare
+                                        web3AuthResponse.userInfo?.authConnectionId, web3AuthResponse.userInfo?.dappShare
                             );
                         }
 
@@ -792,8 +804,8 @@ public class Web3Auth : MonoBehaviour
                                 try
                                 {
                                     KeyStoreManagerUtils.deletePreferencesData(KeyStoreManagerUtils.SESSION_ID);
-                                    if (web3AuthOptions.loginConfig != null)
-                                        KeyStoreManagerUtils.deletePreferencesData(web3AuthOptions.loginConfig?.Values.First()?.verifier);
+                                    if (web3AuthOptions.authConnectionConfig != null)
+                                        KeyStoreManagerUtils.deletePreferencesData(web3AuthOptions.authConnectionConfig?.FirstOrDefault()?.authConnectionId);
 
                                     this.Enqueue(() => this.onLogout?.Invoke());
                                 }
