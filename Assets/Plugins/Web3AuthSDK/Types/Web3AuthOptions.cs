@@ -54,6 +54,6 @@ public class Web3AuthOptions {
         set { }
     }
 
-    private const string authDashboardVersion = "v9";
+    private const string authDashboardVersion = "v10";
     private const string walletAccountConstant = "wallet/account";
 }
