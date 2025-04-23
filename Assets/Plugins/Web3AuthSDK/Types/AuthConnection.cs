@@ -36,5 +36,11 @@ public enum AuthConnection
     [EnumMember(Value = "email_password")]
     EMAIL_PASSWORD,
     [EnumMember(Value = "jwt")]
-    JWT
+    JWT,
+    [EnumMember(Value = "CUSTOM_VERIFIER")]
+    CUSTOM_VERIFIER,
+    [EnumMember(Value = "sms_passwordless")]
+    SMS_PASSWORDLESS,
+    [EnumMember(Value = "farcaster")]
+    FARCASTER
 }

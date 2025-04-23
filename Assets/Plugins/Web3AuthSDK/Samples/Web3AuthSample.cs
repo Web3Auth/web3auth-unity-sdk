@@ -17,20 +17,20 @@ using Org.BouncyCastle.Crypto.Digests;
 public class Web3AuthSample : MonoBehaviour
 {
     List<LoginVerifier> verifierList = new List<LoginVerifier> {
-        new LoginVerifier("Google", AUTH_CONNECTION.GOOGLE),
-        new LoginVerifier("Facebook", AUTH_CONNECTION.FACEBOOK),
-        // new LoginVerifier("CUSTOM_VERIFIER", Provider.CUSTOM_VERIFIER),
-        new LoginVerifier("Twitch", AUTH_CONNECTION.TWITCH),
-        new LoginVerifier("Discord", AUTH_CONNECTION.DISCORD),
-        new LoginVerifier("Reddit", AUTH_CONNECTION.REDDIT),
-        new LoginVerifier("Apple", AUTH_CONNECTION.APPLE),
-        new LoginVerifier("Github", AUTH_CONNECTION.GITHUB),
-        new LoginVerifier("LinkedIn", AUTH_CONNECTION.LINKEDIN),
-        new LoginVerifier("Twitter", AUTH_CONNECTION.TWITTER),
-        new LoginVerifier("Line", AUTH_CONNECTION.LINE),
-        new LoginVerifier("Email Passwordless", AUTH_CONNECTION.EMAIL_PASSWORDLESS),
-        new LoginVerifier("SMS Passwordless", AUTH_CONNECTION.SMS_PASSWORDLESS),
-        new LoginVerifier("Farcaster", AUTH_CONNECTION.FARCASTER),
+        new LoginVerifier("Google", AuthConnection.GOOGLE),
+        new LoginVerifier("Facebook", AuthConnection.FACEBOOK),
+        // new LoginVerifier("CUSTOM_VERIFIER", AuthConnection.CUSTOM_VERIFIER),
+        new LoginVerifier("Twitch", AuthConnection.TWITCH),
+        new LoginVerifier("Discord", AuthConnection.DISCORD),
+        new LoginVerifier("Reddit", AuthConnection.REDDIT),
+        new LoginVerifier("Apple", AuthConnection.APPLE),
+        new LoginVerifier("Github", AuthConnection.GITHUB),
+        new LoginVerifier("LinkedIn", AuthConnection.LINKEDIN),
+        new LoginVerifier("Twitter", AuthConnection.TWITTER),
+        new LoginVerifier("Line", AuthConnection.LINE),
+        new LoginVerifier("Email Passwordless", AuthConnection.EMAIL_PASSWORDLESS),
+        new LoginVerifier("SMS Passwordless", AuthConnection.SMS_PASSWORDLESS),
+        new LoginVerifier("Farcaster", AuthConnection.FARCASTER),
     };
 
     Web3Auth web3Auth;
@@ -105,7 +105,7 @@ public class Web3AuthSample : MonoBehaviour
                 }
             },
             clientId = "BFuUqebV5I8Pz5F7a5A2ihW7YVmbv_OHXnHYDv6OltAD5NGr6e-ViNvde3U4BHdn6HvwfkgobhVu4VwC-OSJkik",
-            buildEnv = BuildEnv.TESTING,
+            authBuildEnv = BuildEnv.TESTING,
             redirectUrl = new Uri("torusapp://com.torus.Web3AuthUnity"),
             network = Web3Auth.Network.SAPPHIRE_DEVNET,
             sessionTime = 86400
@@ -126,7 +126,7 @@ public class Web3AuthSample : MonoBehaviour
         loginButton.onClick.AddListener(login);
         logoutButton.onClick.AddListener(logout);
         mfaSetupButton.onClick.AddListener(enableMFA);
-        launchWalletServicesButton.onClick.AddListener(launchWalletServices);
+        launchWalletServicesButton.onClick.AddListener(showWalletUI);
         signMessageButton.onClick.AddListener(request);
         signResponseButton.onClick.AddListener(manageMFA);
 
@@ -178,7 +178,7 @@ public class Web3AuthSample : MonoBehaviour
 
     private void onVerifierDropDownChange(int selectedIndex)
     {
-        if (verifierList[selectedIndex].authConnection == AUTH_CONNECTION.EMAIL_PASSWORDLESS)
+        if (verifierList[selectedIndex].authConnection == AuthConnection.EMAIL_PASSWORDLESS)
             emailAddressField.gameObject.SetActive(true);
         else
             emailAddressField.gameObject.SetActive(false);
@@ -193,14 +193,14 @@ public class Web3AuthSample : MonoBehaviour
             authConnection = selectedProvider
         };
 
-        if (selectedProvider == AUTH_CONNECTION.EMAIL_PASSWORDLESS)
+        if (selectedProvider == AuthConnection.EMAIL_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
             {
                 login_hint = emailAddressField.text
             };
         }
-        if (selectedProvider == AUTH_CONNECTION.SMS_PASSWORDLESS)
+        if (selectedProvider == AuthConnection.SMS_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
             {
@@ -226,7 +226,7 @@ public class Web3AuthSample : MonoBehaviour
             mfaLevel = MFALevel.MANDATORY
         };
 
-        if (selectedProvider == AUTH_CONNECTION.EMAIL_PASSWORDLESS)
+        if (selectedProvider == AuthConnection.EMAIL_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
             {
@@ -246,7 +246,7 @@ public class Web3AuthSample : MonoBehaviour
             mfaLevel = MFALevel.MANDATORY
         };
 
-        if (selectedProvider == AUTH_CONNECTION.EMAIL_PASSWORDLESS)
+        if (selectedProvider == AuthConnection.EMAIL_PASSWORDLESS)
         {
             options.extraLoginOptions = new ExtraLoginOptions()
             {
@@ -256,34 +256,33 @@ public class Web3AuthSample : MonoBehaviour
         web3Auth.manageMFA(options);
     }
 
-    private void launchWalletServices() {
+    private void showWalletUI() {
         var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
-        var chainConfig = new ChainConfig()
+        var chainConfig = new ChainsConfig()
         {
             chainId = "0x1",
             rpcTarget = "https://mainnet.infura.io/v3/daeee53504be4cd3a997d4f2718d33e0",
             ticker = "ETH",
             chainNamespace = Web3Auth.ChainNamespace.eip155
         };
-        var chainConfigList = new List<ChainConfig> { chainConfig };
+        var chainConfigList = new List<ChainsConfig> { chainConfig };
         foreach (var config in chainConfigList)
         {
             Debug.Log($"Chain ID: {config.chainId}, RPC Target: {config.rpcTarget}, Ticker: {config.ticker}, Namespace: {config.chainNamespace}");
         }
-        web3Auth.launchWalletServices(chainConfigList, "0x1");
+        web3Auth.showWalletUI(chainConfigList, "0x1");
     }
 
     private void request() {
         var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
-        var chainConfig = new ChainConfig()
+        var chainConfig = new ChainsConfig()
         {
             chainId = "0x89",
             rpcTarget = "https://1rpc.io/matic",
             chainNamespace = Web3Auth.ChainNamespace.eip155
         };
-        var chainConfigList = new List<ChainConfig> { chainConfig };
 
         JArray paramsArray = new JArray
         {
@@ -292,7 +291,7 @@ public class Web3AuthSample : MonoBehaviour
             "Android"
         };
 
-        web3Auth.request(chainConfigList, "0x89", "personal_sign", paramsArray);
+        web3Auth.request(chainConfig, "personal_sign", paramsArray);
     }
 
     public string getPublicAddressFromPrivateKey(string privateKeyHex)

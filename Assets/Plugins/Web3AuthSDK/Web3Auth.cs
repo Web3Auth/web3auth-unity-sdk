@@ -18,6 +18,7 @@ public class Web3Auth : MonoBehaviour
         MAINNET, TESTNET, CYAN, AQUA, SAPPHIRE_DEVNET, SAPPHIRE_MAINNET
     }
 
+    [JsonConverter(typeof(StringEnumConverter))]
     public enum ChainNamespace
     {
         eip155, solana
@@ -131,8 +132,8 @@ public class Web3Auth : MonoBehaviour
             if (this.web3AuthOptions.clientId != null)
                 this.initParams["clientId"] = this.web3AuthOptions.clientId;
 
-            if (this.web3AuthOptions.buildEnv != null)
-                this.initParams["buildEnv"] = this.web3AuthOptions.buildEnv.ToString().ToLower();
+            if (this.web3AuthOptions.authBuildEnv != null)
+                this.initParams["authBuildEnv"] = this.web3AuthOptions.authBuildEnv.ToString().ToLower();
 
             this.initParams["network"] = this.web3AuthOptions.network.ToString().ToLower();
 
@@ -353,7 +354,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void launchWalletServices(List<ChainConfig> chainConfig, string chainId, string path = "wallet")
+    public async void showWalletUI(List<ChainsConfig> chainConfig, string chainId, string path = "wallet")
     {
             string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             if (!string.IsNullOrEmpty(sessionId))
@@ -613,7 +614,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void request(List<ChainConfig> chainConfig, string chainId, string method, JArray requestParams, string path = "wallet/request") {
+    public async void request(ChainsConfig chainConfig, string method, JArray requestParams, string path = "wallet/request") {
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
@@ -629,15 +630,17 @@ public class Web3Auth : MonoBehaviour
                     this.initParams["redirectUrl"] = Utils.GetCurrentURL();
             #endif
 
-                    string chainsJson = JsonConvert.SerializeObject(chainConfig, Formatting.None, new JsonSerializerSettings
-                    {
-                        Converters = new List<JsonConverter> { new StringEnumConverter() },
-                            NullValueHandling = NullValueHandling.Ignore
-                    });
-                     this.initParams["chains"] = chainsJson;
-                    this.initParams["chainId"] = chainId;
+                    var chainConfigList = new List<ChainsConfig> { chainConfig };
+                    string chainConfigListJson = JsonConvert.SerializeObject(chainConfigList, Formatting.Indented);
+                    this.initParams["chains"] = chainConfigListJson;
+                    this.initParams["chainId"] = chainConfig.chainId;
                     Dictionary<string, object> paramMap = new Dictionary<string, object>();
                     paramMap["options"] = this.initParams;
+
+                    foreach (KeyValuePair<string, object> entry in paramMap)
+                    {
+                        Debug.Log($"Key: {entry.Key}, Value: {JsonUtility.ToJson(entry.Value)}");
+                    }
 
                     var newSessionId = KeyStoreManagerUtils.generateRandomSessionKey();
                     string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
