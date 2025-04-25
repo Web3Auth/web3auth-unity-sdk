@@ -135,7 +135,7 @@ public class Web3Auth : MonoBehaviour
             if (this.web3AuthOptions.authBuildEnv != null)
                 this.initParams["authBuildEnv"] = this.web3AuthOptions.authBuildEnv.ToString().ToLower();
 
-            this.initParams["network"] = this.web3AuthOptions.network.ToString().ToLower();
+            this.initParams["network"] = this.web3AuthOptions.web3AuthNetwork.ToString().ToLower();
 
             if (this.web3AuthOptions.useCoreKitKey.HasValue)
                 this.initParams["useCoreKitKey"] = this.web3AuthOptions.useCoreKitKey.Value;
@@ -354,7 +354,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void showWalletUI(List<ChainsConfig> chainConfig, string chainId, string path = "wallet")
+    public async void showWalletUI(List<ChainConfig> chainConfig, string chainId, string path = "wallet")
     {
             string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             if (!string.IsNullOrEmpty(sessionId))
@@ -614,7 +614,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void request(ChainsConfig chainConfig, string method, JArray requestParams, string path = "wallet/request") {
+    public async void request(ChainConfig chainConfig, string method, JArray requestParams, string path = "wallet/request") {
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
@@ -630,7 +630,7 @@ public class Web3Auth : MonoBehaviour
                     this.initParams["redirectUrl"] = Utils.GetCurrentURL();
             #endif
 
-                    var chainConfigList = new List<ChainsConfig> { chainConfig };
+                    var chainConfigList = new List<ChainConfig> { chainConfig };
                     string chainConfigListJson = JsonConvert.SerializeObject(chainConfigList, Formatting.Indented);
                     this.initParams["chains"] = chainConfigListJson;
                     this.initParams["chainId"] = chainConfig.chainId;
@@ -749,7 +749,7 @@ public class Web3Auth : MonoBehaviour
                             );
                         }
 
-                        if (string.IsNullOrEmpty(this.web3AuthResponse.privKey) || string.IsNullOrEmpty(this.web3AuthResponse.privKey.Trim('0')))
+                        if (string.IsNullOrEmpty(this.web3AuthResponse.privateKey) || string.IsNullOrEmpty(this.web3AuthResponse.privateKey.Trim('0')))
                             this.Enqueue(() => this.onLogout?.Invoke());
                         else
                             this.Enqueue(() => this.onLogin?.Invoke(this.web3AuthResponse));
@@ -885,7 +885,7 @@ public class Web3Auth : MonoBehaviour
     private async Task<bool> fetchProjectConfig()
     {
         TaskCompletionSource<bool> fetchProjectConfigResponse = new TaskCompletionSource<bool>();
-        StartCoroutine(Web3AuthApi.getInstance().fetchProjectConfig(this.web3AuthOptions.clientId, this.web3AuthOptions.network.ToString().ToLower(), (response =>
+        StartCoroutine(Web3AuthApi.getInstance().fetchProjectConfig(this.web3AuthOptions.clientId, this.web3AuthOptions.web3AuthNetwork.ToString().ToLower(), (response =>
         {
             if (response != null)
             {
@@ -930,7 +930,7 @@ public class Web3Auth : MonoBehaviour
         if (web3AuthResponse == null)
             return "";
 
-        return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitKey : web3AuthResponse.privKey;
+        return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitKey : web3AuthResponse.privateKey;
     }
 
     public string getEd25519PrivKey()

@@ -107,7 +107,7 @@ public class Web3AuthSample : MonoBehaviour
             clientId = "BFuUqebV5I8Pz5F7a5A2ihW7YVmbv_OHXnHYDv6OltAD5NGr6e-ViNvde3U4BHdn6HvwfkgobhVu4VwC-OSJkik",
             authBuildEnv = BuildEnv.TESTING,
             redirectUrl = new Uri("torusapp://com.torus.Web3AuthUnity"),
-            network = Web3Auth.Network.SAPPHIRE_DEVNET,
+            web3AuthNetwork = Web3Auth.Network.SAPPHIRE_DEVNET,
             sessionTime = 86400
         });
         web3Auth.onLogin += onLogin;
@@ -259,14 +259,14 @@ public class Web3AuthSample : MonoBehaviour
     private void showWalletUI() {
         var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
-        var chainConfig = new ChainsConfig()
+        var chainConfig = new ChainConfig()
         {
             chainId = "0x1",
             rpcTarget = "https://mainnet.infura.io/v3/daeee53504be4cd3a997d4f2718d33e0",
             ticker = "ETH",
             chainNamespace = Web3Auth.ChainNamespace.eip155
         };
-        var chainConfigList = new List<ChainsConfig> { chainConfig };
+        var chainConfigList = new List<ChainConfig> { chainConfig };
         foreach (var config in chainConfigList)
         {
             Debug.Log($"Chain ID: {config.chainId}, RPC Target: {config.rpcTarget}, Ticker: {config.ticker}, Namespace: {config.chainNamespace}");
@@ -277,7 +277,7 @@ public class Web3AuthSample : MonoBehaviour
     private void request() {
         var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
-        var chainConfig = new ChainsConfig()
+        var chainConfig = new ChainConfig()
         {
             chainId = "0x89",
             rpcTarget = "https://1rpc.io/matic",

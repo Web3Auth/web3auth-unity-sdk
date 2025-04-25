@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 #nullable enable
-public class ChainsConfig {
+public class ChainConfig {
 
     [JsonConverter(typeof(StringEnumConverter))]
     public Web3Auth.ChainNamespace? chainNamespace { get; set; } = Web3Auth.ChainNamespace.eip155;
