@@ -1,7 +1,12 @@
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 #nullable enable
 public class ChainConfig {
-    public Web3Auth.ChainNamespace? chainNamespace { get; set; } = Web3Auth.ChainNamespace.EIP155;
+
+    [JsonConverter(typeof(StringEnumConverter))]
+    public Web3Auth.ChainNamespace? chainNamespace { get; set; } = Web3Auth.ChainNamespace.eip155;
+
     public int decimals { get; set; } = 18;
     public string blockExplorerUrl { get; set; } = null;
     public string chainId { get; set; }

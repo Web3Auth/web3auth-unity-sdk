@@ -3,7 +3,7 @@ using Newtonsoft.Json.Converters;
 using System.Runtime.Serialization;
 
 [JsonConverter(typeof(StringEnumConverter))]
-public enum Provider
+public enum AuthConnection
 {
     [EnumMember(Value = "google")]
     GOOGLE,
@@ -35,8 +35,8 @@ public enum Provider
     EMAIL_PASSWORDLESS,
     [EnumMember(Value = "email_password")]
     EMAIL_PASSWORD,
-    [EnumMember(Value = "jwt")]
-    JWT,
+    [EnumMember(Value = "custom")]
+    CUSTOM,
     [EnumMember(Value = "CUSTOM_VERIFIER")]
     CUSTOM_VERIFIER,
     [EnumMember(Value = "sms_passwordless")]
