@@ -925,7 +925,7 @@ public class Web3Auth : MonoBehaviour
         return await fetchProjectConfigResponse.Task;
     }
 
-    public string getPrivKey()
+    public string getPrivateKey()
     {
         if (web3AuthResponse == null)
             return "";
@@ -933,7 +933,7 @@ public class Web3Auth : MonoBehaviour
         return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitKey : web3AuthResponse.privateKey;
     }
 
-    public string getEd25519PrivKey()
+    public string getEd25519PrivateKey()
     {
         if (web3AuthResponse == null)
             return "";

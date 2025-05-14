@@ -287,7 +287,7 @@ public class Web3AuthSample : MonoBehaviour
         JArray paramsArray = new JArray
         {
             "Hello, World!",
-            getPublicAddressFromPrivateKey(web3Auth.getPrivKey()),
+            getPublicAddressFromPrivateKey(web3Auth.getPrivateKey()),
             "Android"
         };
 
