@@ -41,7 +41,7 @@ public class Web3AuthOptions {
     public int sessionTime { get; set; } = 86400;
     public ChainConfig? chainConfig { get; set; }
     public Dictionary<string, string> originData { get; set; } = null;
-    public bool? includeUserDataInToken { get; set; } = false;
+    public bool? includeUserDataInToken { get; set; } = true;
 
     public string dashboardUrl
     {
