@@ -18,9 +18,10 @@ public class Web3Auth : MonoBehaviour
         MAINNET, TESTNET, CYAN, AQUA, SAPPHIRE_DEVNET, SAPPHIRE_MAINNET
     }
 
+    [JsonConverter(typeof(StringEnumConverter))]
     public enum ChainNamespace
     {
-        EIP155, SOLANA
+        eip155, solana
     }
 
     public enum BuildEnv
@@ -125,16 +126,16 @@ public class Web3Auth : MonoBehaviour
             if (this.web3AuthOptions.whiteLabel != null)
                 this.initParams["whiteLabel"] = JsonConvert.SerializeObject(this.web3AuthOptions.whiteLabel, settings);
 
-            if (this.web3AuthOptions.loginConfig != null)
-                this.initParams["loginConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.loginConfig, settings);
+            if (this.web3AuthOptions.authConnectionConfig != null)
+                this.initParams["authConnectionConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.authConnectionConfig, settings);
 
             if (this.web3AuthOptions.clientId != null)
                 this.initParams["clientId"] = this.web3AuthOptions.clientId;
 
-            if (this.web3AuthOptions.buildEnv != null)
-                this.initParams["buildEnv"] = this.web3AuthOptions.buildEnv.ToString().ToLower();
+            if (this.web3AuthOptions.authBuildEnv != null)
+                this.initParams["authBuildEnv"] = this.web3AuthOptions.authBuildEnv.ToString().ToLower();
 
-            this.initParams["network"] = this.web3AuthOptions.network.ToString().ToLower();
+            this.initParams["network"] = this.web3AuthOptions.web3AuthNetwork.ToString().ToLower();
 
             if (this.web3AuthOptions.useCoreKitKey.HasValue)
                 this.initParams["useCoreKitKey"] = this.web3AuthOptions.useCoreKitKey.Value;
@@ -353,7 +354,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void launchWalletServices(ChainConfig chainConfig, string path = "wallet")
+    public async void showWalletUI(List<ChainConfig> chainConfig, string chainId, string path = "wallet")
     {
             string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             if (!string.IsNullOrEmpty(sessionId))
@@ -370,7 +371,13 @@ public class Web3Auth : MonoBehaviour
             this.initParams["redirectUrl"] = Utils.GetCurrentURL();
     #endif
 
-            this.initParams["chainConfig"] = chainConfig;
+            string chainsJson = JsonConvert.SerializeObject(chainConfig, Formatting.None, new JsonSerializerSettings
+            {
+                Converters = new List<JsonConverter> { new StringEnumConverter() },
+                    NullValueHandling = NullValueHandling.Ignore
+            });
+            this.initParams["chains"] = chainsJson;
+            this.initParams["chainId"] = chainId;
             Dictionary<string, object> paramMap = new Dictionary<string, object>();
             paramMap["options"] = this.initParams;
 
@@ -524,10 +531,10 @@ public class Web3Auth : MonoBehaviour
 
     public void login(LoginParams loginParams)
     {
-        if (web3AuthOptions.loginConfig != null)
+        if (web3AuthOptions.authConnectionConfig != null)
         {
-            var loginConfigItem = web3AuthOptions.loginConfig?.Values.First();
-            var share = KeyStoreManagerUtils.getPreferencesData(loginConfigItem?.verifier);
+            var authConnectionItem = web3AuthOptions.authConnectionConfig?.FirstOrDefault();
+            var share = KeyStoreManagerUtils.getPreferencesData(authConnectionItem?.authConnectionId);
 
             if (!string.IsNullOrEmpty(share))
             {
@@ -564,10 +571,10 @@ public class Web3Auth : MonoBehaviour
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
-            if (web3AuthOptions.loginConfig != null)
+            if (web3AuthOptions.authConnectionConfig != null)
             {
-                var loginConfigItem = web3AuthOptions.loginConfig?.Values.First();
-                var share = KeyStoreManagerUtils.getPreferencesData(loginConfigItem?.verifier);
+                var authConnectionItem = web3AuthOptions.authConnectionConfig?.FirstOrDefault();
+                var share = KeyStoreManagerUtils.getPreferencesData(authConnectionItem?.authConnectionId);
                 if (!string.IsNullOrEmpty(share))
                    {
                        loginParams.dappShare = share;
@@ -590,10 +597,10 @@ public class Web3Auth : MonoBehaviour
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
-            if (web3AuthOptions.loginConfig != null)
+            if (web3AuthOptions.authConnectionConfig != null)
             {
-                var loginConfigItem = web3AuthOptions.loginConfig?.Values.First();
-                var share = KeyStoreManagerUtils.getPreferencesData(loginConfigItem?.verifier);
+                var authConnectionItem = web3AuthOptions.authConnectionConfig?.FirstOrDefault();
+                var share = KeyStoreManagerUtils.getPreferencesData(authConnectionItem?.authConnectionId);
                 if (!string.IsNullOrEmpty(share))
                    {
                        loginParams.dappShare = share;
@@ -623,9 +630,17 @@ public class Web3Auth : MonoBehaviour
                     this.initParams["redirectUrl"] = Utils.GetCurrentURL();
             #endif
 
-                    this.initParams["chainConfig"] = chainConfig;
+                    var chainConfigList = new List<ChainConfig> { chainConfig };
+                    string chainConfigListJson = JsonConvert.SerializeObject(chainConfigList, Formatting.Indented);
+                    this.initParams["chains"] = chainConfigListJson;
+                    this.initParams["chainId"] = chainConfig.chainId;
                     Dictionary<string, object> paramMap = new Dictionary<string, object>();
                     paramMap["options"] = this.initParams;
+
+                    foreach (KeyValuePair<string, object> entry in paramMap)
+                    {
+                        Debug.Log($"Key: {entry.Key}, Value: {JsonUtility.ToJson(entry.Value)}");
+                    }
 
                     var newSessionId = KeyStoreManagerUtils.generateRandomSessionKey();
                     string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
@@ -730,11 +745,11 @@ public class Web3Auth : MonoBehaviour
                         if (!string.IsNullOrEmpty(web3AuthResponse.userInfo?.dappShare))
                         {
                             KeyStoreManagerUtils.savePreferenceData(
-                                        web3AuthResponse.userInfo?.verifier, web3AuthResponse.userInfo?.dappShare
+                                        web3AuthResponse.userInfo?.authConnectionId, web3AuthResponse.userInfo?.dappShare
                             );
                         }
 
-                        if (string.IsNullOrEmpty(this.web3AuthResponse.privKey) || string.IsNullOrEmpty(this.web3AuthResponse.privKey.Trim('0')))
+                        if (string.IsNullOrEmpty(this.web3AuthResponse.privateKey) || string.IsNullOrEmpty(this.web3AuthResponse.privateKey.Trim('0')))
                             this.Enqueue(() => this.onLogout?.Invoke());
                         else
                             this.Enqueue(() => this.onLogin?.Invoke(this.web3AuthResponse));
@@ -792,8 +807,8 @@ public class Web3Auth : MonoBehaviour
                                 try
                                 {
                                     KeyStoreManagerUtils.deletePreferencesData(KeyStoreManagerUtils.SESSION_ID);
-                                    if (web3AuthOptions.loginConfig != null)
-                                        KeyStoreManagerUtils.deletePreferencesData(web3AuthOptions.loginConfig?.Values.First()?.verifier);
+                                    if (web3AuthOptions.authConnectionConfig != null)
+                                        KeyStoreManagerUtils.deletePreferencesData(web3AuthOptions.authConnectionConfig?.FirstOrDefault()?.authConnectionId);
 
                                     this.Enqueue(() => this.onLogout?.Invoke());
                                 }
@@ -870,7 +885,7 @@ public class Web3Auth : MonoBehaviour
     private async Task<bool> fetchProjectConfig()
     {
         TaskCompletionSource<bool> fetchProjectConfigResponse = new TaskCompletionSource<bool>();
-        StartCoroutine(Web3AuthApi.getInstance().fetchProjectConfig(this.web3AuthOptions.clientId, this.web3AuthOptions.network.ToString().ToLower(), (response =>
+        StartCoroutine(Web3AuthApi.getInstance().fetchProjectConfig(this.web3AuthOptions.clientId, this.web3AuthOptions.web3AuthNetwork.ToString().ToLower(), (response =>
         {
             if (response != null)
             {
@@ -910,15 +925,15 @@ public class Web3Auth : MonoBehaviour
         return await fetchProjectConfigResponse.Task;
     }
 
-    public string getPrivKey()
+    public string getPrivateKey()
     {
         if (web3AuthResponse == null)
             return "";
 
-        return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitKey : web3AuthResponse.privKey;
+        return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitKey : web3AuthResponse.privateKey;
     }
 
-    public string getEd25519PrivKey()
+    public string getEd25519PrivateKey()
     {
         if (web3AuthResponse == null)
             return "";

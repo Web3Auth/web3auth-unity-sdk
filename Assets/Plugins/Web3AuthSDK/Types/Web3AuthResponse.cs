@@ -1,6 +1,9 @@
-﻿public class Web3AuthResponse
+﻿using Newtonsoft.Json;
+public class Web3AuthResponse
 {
-    public string privKey { get; set; }
+    [JsonProperty("privKey")]
+    public string privateKey { get; set; }
+
     public string ed25519PrivKey { get; set; }
     public UserInfo userInfo { get; set; }
     public string error { get; set; }

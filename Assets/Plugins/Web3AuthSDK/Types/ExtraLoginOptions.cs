@@ -5,13 +5,14 @@ public class ExtraLoginOptions {
     public string domain { get; set; }
     public string client_id { get; set; }
     public string leeway { get; set; }
-    public string verifierIdField { get; set; }
-    public bool isVerifierIdCaseSensitive { get; set; }
+    public string userIdField { get; set; }
+    public bool isUserIdCaseSensitive { get; set; }
     public Display display { get; set; }
     public Prompt prompt { get; set; }
     public string max_age { get; set; }
     public string ui_locales { get; set; }
     public string id_token { get; set; }
+    public string access_token { get; set; }
     public string id_token_hint { get; set; }
     public string login_hint { get; set; }
     public string acr_values { get; set; }
