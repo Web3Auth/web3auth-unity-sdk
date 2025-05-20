@@ -4,7 +4,8 @@ public class Web3AuthResponse
     [JsonProperty("privKey")]
     public string privateKey { get; set; }
 
-    public string ed25519PrivKey { get; set; }
+    [JsonProperty("ed25519PrivKey")]
+    public string ed25519PrivateKey { get; set; }
     public UserInfo userInfo { get; set; }
     public string error { get; set; }
     public string sessionId { get; set; }

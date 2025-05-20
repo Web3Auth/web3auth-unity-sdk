@@ -938,7 +938,7 @@ public class Web3Auth : MonoBehaviour
         if (web3AuthResponse == null)
             return "";
 
-        return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitEd25519PrivKey : web3AuthResponse.ed25519PrivKey;
+        return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitEd25519PrivKey : web3AuthResponse.ed25519PrivateKey;
     }
 
     public UserInfo getUserInfo()
