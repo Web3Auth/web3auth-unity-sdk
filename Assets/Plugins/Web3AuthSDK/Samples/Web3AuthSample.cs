@@ -1,18 +1,16 @@
 ﻿using System;
-using System.Linq;
 using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.UI;
+using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using static Web3Auth;
 using Org.BouncyCastle.Asn1.Sec;
-using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
-using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.Encoders;
-using Org.BouncyCastle.Crypto.Digests;
+using UnityEngine;
+using UnityEngine.UI;
+using static Web3Auth;
 
 public class Web3AuthSample : MonoBehaviour
 {
@@ -104,10 +102,11 @@ public class Web3AuthSample : MonoBehaviour
                     clientId = "d84f6xvbdV75VTGmHiMWfZLeSPk8M07C"
                 }
             },
-            clientId = "BFuUqebV5I8Pz5F7a5A2ihW7YVmbv_OHXnHYDv6OltAD5NGr6e-ViNvde3U4BHdn6HvwfkgobhVu4VwC-OSJkik",
+            clientId = "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
             authBuildEnv = BuildEnv.TESTING,
             redirectUrl = new Uri("torusapp://com.torus.Web3AuthUnity"),
-            web3AuthNetwork = Web3Auth.Network.SAPPHIRE_DEVNET,
+            web3AuthNetwork = Web3Auth.Network.SAPPHIRE_MAINNET,
+            defaultChainId = "0x1",
             sessionTime = 86400
         });
         web3Auth.onLogin += onLogin;
@@ -259,29 +258,29 @@ public class Web3AuthSample : MonoBehaviour
     private void showWalletUI() {
         var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
-        var chainConfig = new ChainConfig()
+        var chainConfig = new Chains()
         {
             chainId = "0x1",
             rpcTarget = "https://mainnet.infura.io/v3/daeee53504be4cd3a997d4f2718d33e0",
             ticker = "ETH",
-            chainNamespace = Web3Auth.ChainNamespace.eip155
+            chainNamespace = ChainNamespace.eip155
         };
-        var chainConfigList = new List<ChainConfig> { chainConfig };
+        var chainConfigList = new List<Chains> { chainConfig };
         foreach (var config in chainConfigList)
         {
             Debug.Log($"Chain ID: {config.chainId}, RPC Target: {config.rpcTarget}, Ticker: {config.ticker}, Namespace: {config.chainNamespace}");
         }
-        web3Auth.showWalletUI(chainConfigList, "0x1");
+        web3Auth.showWalletUI("0x1");
     }
 
     private void request() {
         var selectedProvider = verifierList[verifierDropdown.value].authConnection;
 
-        var chainConfig = new ChainConfig()
+        var chainConfig = new Chains()
         {
             chainId = "0x89",
             rpcTarget = "https://1rpc.io/matic",
-            chainNamespace = Web3Auth.ChainNamespace.eip155
+            chainNamespace = ChainNamespace.eip155
         };
 
         JArray paramsArray = new JArray
@@ -291,7 +290,7 @@ public class Web3AuthSample : MonoBehaviour
             "Android"
         };
 
-        web3Auth.request(chainConfig, "personal_sign", paramsArray);
+        web3Auth.request("personal_sign", paramsArray);
     }
 
     public string getPublicAddressFromPrivateKey(string privateKeyHex)

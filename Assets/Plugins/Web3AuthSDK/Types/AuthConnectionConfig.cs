@@ -12,4 +12,5 @@
     public bool showOnModal { get; set; } = true;
     public bool showOnDesktop { get; set; } = true;
     public bool showOnMobile { get; set; } = true;
+    public ExtraLoginOptions extraLoginOptions { get; set; }
 }

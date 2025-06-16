@@ -1,15 +1,17 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Linq;
-using UnityEngine;
-using System.Net;
+﻿using System;
 using System.Collections;
-using Org.BouncyCastle.Math;
-using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Linq;
+using Org.BouncyCastle.Math;
+using UnityEngine;
+using Web3AuthSDK.Editor;
 
 public class Web3Auth : MonoBehaviour
 {
@@ -21,7 +23,7 @@ public class Web3Auth : MonoBehaviour
     [JsonConverter(typeof(StringEnumConverter))]
     public enum ChainNamespace
     {
-        eip155, solana
+        eip155, solana, other
     }
 
     public enum BuildEnv
@@ -43,6 +45,7 @@ public class Web3Auth : MonoBehaviour
     private Dictionary<string, object> initParams;
 
     private Web3AuthResponse web3AuthResponse;
+    private ProjectConfigResponse projectConfigResponse;
     private bool isRequestResponse = false;
 
     public event Action<Web3AuthResponse> onLogin;
@@ -65,7 +68,7 @@ public class Web3Auth : MonoBehaviour
     private string redirectUri;
 
     [SerializeField]
-    private Web3Auth.Network network;
+    private Network network;
     private string redirectUrl;
 
     private static readonly Queue<Action> _executionQueue = new Queue<Action>();
@@ -85,7 +88,7 @@ public class Web3Auth : MonoBehaviour
             onDeepLinkActivated(Application.absoluteURL);
 
 #if UNITY_EDITOR
-        Web3AuthSDK.Editor.Web3AuthDebug.onURLRecieved += (Uri url) =>
+        Web3AuthDebug.onURLRecieved += (Uri url) =>
         {
             this.setResultUrl(url);
         };
@@ -137,11 +140,8 @@ public class Web3Auth : MonoBehaviour
 
             this.initParams["network"] = this.web3AuthOptions.web3AuthNetwork.ToString().ToLower();
 
-            if (this.web3AuthOptions.useCoreKitKey.HasValue)
-                this.initParams["useCoreKitKey"] = this.web3AuthOptions.useCoreKitKey.Value;
-
-            if (this.web3AuthOptions.chainNamespace != null)
-                this.initParams["chainNamespace"] = this.web3AuthOptions.chainNamespace;
+            if (this.web3AuthOptions.useSFAKey.HasValue)
+                this.initParams["useCoreKitKey"] = this.web3AuthOptions.useSFAKey.Value;
 
             if (this.web3AuthOptions.mfaSettings != null)
                 this.initParams["mfaSettings"] = JsonConvert.SerializeObject(this.web3AuthOptions.mfaSettings, settings);
@@ -151,7 +151,6 @@ public class Web3Auth : MonoBehaviour
 
             if (this.web3AuthOptions.dashboardUrl != null)
                 this.initParams["dashboardUrl"] = this.web3AuthOptions.dashboardUrl;
-
         }
     }
 
@@ -239,10 +238,10 @@ public class Web3Auth : MonoBehaviour
                 </html>
             ";
 
-            byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
+            byte[] buffer = Encoding.UTF8.GetBytes(responseString);
 
             httpResponse.ContentLength64 = buffer.Length;
-            System.IO.Stream output = httpResponse.OutputStream;
+            Stream output = httpResponse.OutputStream;
             output.Write(buffer, 0, buffer.Length);
             output.Close();
 
@@ -252,10 +251,10 @@ public class Web3Auth : MonoBehaviour
         {
             var responseString = @"ok";
 
-            byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
+            byte[] buffer = Encoding.UTF8.GetBytes(responseString);
 
             httpResponse.ContentLength64 = buffer.Length;
-            System.IO.Stream output = httpResponse.OutputStream;
+            Stream output = httpResponse.OutputStream;
             output.Write(buffer, 0, buffer.Length);
             output.Close();
             string code = httpRequest.QueryString.Get("code");
@@ -284,12 +283,12 @@ public class Web3Auth : MonoBehaviour
         this.initParams["redirectUrl"] = Utils.GetCurrentURL();
 #endif
 
-        loginParams.redirectUrl = loginParams.redirectUrl ?? new Uri(this.initParams["redirectUrl"].ToString());
+        //loginParams.redirectUrl = loginParams.redirectUrl ?? new Uri(this.initParams["redirectUrl"].ToString());
         //Debug.Log("loginParams.redirectUrl: =>" + loginParams.redirectUrl);
         var sessionId = KeyStoreManagerUtils.generateRandomSessionKey();
         if(path == "manage_mfa") {
             loginParams.dappUrl = this.initParams["redirectUrl"].ToString();
-            loginParams.redirectUrl = new Uri(this.initParams["dashboardUrl"].ToString());
+            //loginParams.redirectUrl = new Uri(this.initParams["dashboardUrl"].ToString());
             this.initParams["redirectUrl"] = new Uri(this.initParams["dashboardUrl"].ToString());
             var loginIdObject = new Dictionary<string, string>
             {
@@ -315,7 +314,7 @@ public class Web3Auth : MonoBehaviour
             paramMap["sessionId"] = savedSessionId;
         }
 
-        //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(paramMap));
+        Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(paramMap));
         string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
             new JsonSerializerSettings
             {
@@ -354,77 +353,91 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void showWalletUI(List<ChainConfig> chainConfig, string chainId, string path = "wallet")
+    public async void showWalletUI(string path = "wallet")
     {
             string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             if (!string.IsNullOrEmpty(sessionId))
             {
-            redirectUrl = this.initParams["redirectUrl"].ToString();
-            if (redirectUrl.EndsWith("/"))
-            {
-                redirectUrl = redirectUrl.TrimEnd('/');
-            }
-    #if UNITY_STANDALONE || UNITY_EDITOR
-            this.initParams["redirectUrl"] = StartLocalWebserver();
-            redirectUrl = this.initParams["redirectUrl"].ToString().Replace("/complete/", "");
-    #elif UNITY_WEBGL
-            this.initParams["redirectUrl"] = Utils.GetCurrentURL();
-    #endif
-
-            string chainsJson = JsonConvert.SerializeObject(chainConfig, Formatting.None, new JsonSerializerSettings
-            {
-                Converters = new List<JsonConverter> { new StringEnumConverter() },
-                    NullValueHandling = NullValueHandling.Ignore
-            });
-            this.initParams["chains"] = chainsJson;
-            this.initParams["chainId"] = chainId;
-            Dictionary<string, object> paramMap = new Dictionary<string, object>();
-            paramMap["options"] = this.initParams;
-
-            //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(paramMap));
-            var newSessionId = KeyStoreManagerUtils.generateRandomSessionKey();
-            string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
-                new JsonSerializerSettings
+                redirectUrl = this.initParams["redirectUrl"].ToString();
+                if (redirectUrl.EndsWith("/"))
                 {
-                    NullValueHandling = NullValueHandling.Ignore
-                }), 600, "*", newSessionId);
+                    redirectUrl = redirectUrl.TrimEnd('/');
+                }
+#if UNITY_STANDALONE || UNITY_EDITOR
+                this.initParams["redirectUrl"] = StartLocalWebserver();
+                redirectUrl = this.initParams["redirectUrl"].ToString().Replace("/complete/", "");
+#elif UNITY_WEBGL
+            this.initParams["redirectUrl"] = Utils.GetCurrentURL();
+#endif
 
-            if (!string.IsNullOrEmpty(loginId))
-            {
-                var loginIdObject = new Dictionary<string, string>
-                 {
-                      { "loginId", loginId },
-                      { "sessionId", sessionId },
-                      { "platform", "unity" }
-                 };
-                string hash = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(loginIdObject, Formatting.None,
+                if (projectConfigResponse?.chains != null)
+                {
+                    string chainsJson = JsonConvert.SerializeObject(projectConfigResponse.chains, Formatting.None, new JsonSerializerSettings
+                    {
+                        Converters = new List<JsonConverter> { new StringEnumConverter() },
+                        NullValueHandling = NullValueHandling.Ignore
+                    });
+                    this.initParams["chains"] = chainsJson;
+                }
+                
+                this.initParams["chainId"] = web3AuthOptions.defaultChainId ?? "0x1";
+                
+                if (projectConfigResponse?.embeddedWalletAuth != null)
+                {
+                    this.initParams["embeddedWalletAuth"] = projectConfigResponse.embeddedWalletAuth;
+                }
+                
+                if (projectConfigResponse?.smartAccounts != null)
+                {
+                    this.initParams["smartAccounts"] = projectConfigResponse.smartAccounts;
+                } 
+                Dictionary<string, object> paramMap = new Dictionary<string, object>();
+                paramMap["options"] = this.initParams;
+
+                //Debug.Log("paramMap: =>" + JsonConvert.SerializeObject(paramMap));
+                var newSessionId = KeyStoreManagerUtils.generateRandomSessionKey();
+                string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
                     new JsonSerializerSettings
                     {
                         NullValueHandling = NullValueHandling.Ignore
-                    })));
+                    }), 600, "*", newSessionId);
 
-                UriBuilder uriBuilder = new UriBuilder(this.web3AuthOptions.walletSdkUrl);
-                if(this.web3AuthOptions.sdkUrl.Contains("develop"))
+                if (!string.IsNullOrEmpty(loginId))
                 {
-                    uriBuilder.Path = "/" + path;
+                    var loginIdObject = new Dictionary<string, string>
+                    {
+                        { "loginId", loginId },
+                        { "sessionId", sessionId },
+                        { "platform", "unity" }
+                    };
+                    string hash = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(loginIdObject, Formatting.None,
+                        new JsonSerializerSettings
+                        {
+                            NullValueHandling = NullValueHandling.Ignore
+                        })));
+
+                    UriBuilder uriBuilder = new UriBuilder(this.web3AuthOptions.walletSdkUrl);
+                    if(this.web3AuthOptions.sdkUrl.Contains("develop"))
+                    {
+                        uriBuilder.Path = "/" + path;
+                    }
+                    else
+                    {
+                        uriBuilder.Path += "/" + path;
+                    }
+                    uriBuilder.Fragment = "b64Params=" + hash;
+                    //Debug.Log("finalUriBuilderToOpen: =>" + uriBuilder.ToString());
+                    isRequestResponse = false;
+                    Utils.LaunchUrl(uriBuilder.ToString(), this.initParams["redirectUrl"].ToString(), gameObject.name);
                 }
                 else
                 {
-                    uriBuilder.Path += "/" + path;
+                    throw new Exception("Some went wrong. Please try again later.");
                 }
-                uriBuilder.Fragment = "b64Params=" + hash;
-                //Debug.Log("finalUriBuilderToOpen: =>" + uriBuilder.ToString());
-                isRequestResponse = false;
-                Utils.LaunchUrl(uriBuilder.ToString(), this.initParams["redirectUrl"].ToString(), gameObject.name);
-            }
-            else
+            } else
             {
-                throw new Exception("Some went wrong. Please try again later.");
+                throw new Exception("SessionId not found. Please login first.");
             }
-        } else
-        {
-            throw new Exception("SessionId not found. Please login first.");
-        }
     }
 
     public void setResultUrl(Uri uri)
@@ -525,7 +538,7 @@ public class Web3Auth : MonoBehaviour
             base64Params += d % 2 > 0 ? "=" : "==";
         }
         byte[] bytes = Convert.FromBase64String(base64Params);
-        var decodedString = System.Text.Encoding.UTF8.GetString(bytes);
+        var decodedString = Encoding.UTF8.GetString(bytes);
         return decodedString;
     }
 
@@ -614,7 +627,7 @@ public class Web3Auth : MonoBehaviour
         }
     }
 
-    public async void request(ChainConfig chainConfig, string method, JArray requestParams, string path = "wallet/request") {
+    public async void request(string method, JArray requestParams, string path = "wallet/request") {
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
@@ -622,18 +635,33 @@ public class Web3Auth : MonoBehaviour
                     if (redirectUrl.EndsWith("/"))
                     {
                         redirectUrl = redirectUrl.TrimEnd('/');
-                   }
-            #if UNITY_STANDALONE || UNITY_EDITOR
+                    }
+#if UNITY_STANDALONE || UNITY_EDITOR
                     this.initParams["redirectUrl"] = StartLocalWebserver();
                     redirectUrl = this.initParams["redirectUrl"].ToString().Replace("/complete/", "");
-            #elif UNITY_WEBGL
+#elif UNITY_WEBGL
                     this.initParams["redirectUrl"] = Utils.GetCurrentURL();
-            #endif
+#endif
 
-                    var chainConfigList = new List<ChainConfig> { chainConfig };
-                    string chainConfigListJson = JsonConvert.SerializeObject(chainConfigList, Formatting.Indented);
-                    this.initParams["chains"] = chainConfigListJson;
-                    this.initParams["chainId"] = chainConfig.chainId;
+                    if (projectConfigResponse?.chains != null)
+                    {
+                        string chainsJson = JsonConvert.SerializeObject(projectConfigResponse.chains, Formatting.None, new JsonSerializerSettings
+                        {
+                            Converters = new List<JsonConverter> { new StringEnumConverter() },
+                            NullValueHandling = NullValueHandling.Ignore
+                        });
+                        this.initParams["chains"] = chainsJson;
+                    }
+                    this.initParams["chainId"] = web3AuthOptions.defaultChainId ?? "0x1";   
+                    if (projectConfigResponse?.embeddedWalletAuth != null)
+                    {
+                        this.initParams["embeddedWalletAuth"] = projectConfigResponse.embeddedWalletAuth;
+                    }
+                
+                    if (projectConfigResponse?.smartAccounts != null)
+                    {
+                        this.initParams["smartAccounts"] = projectConfigResponse.smartAccounts;
+                    }
                     Dictionary<string, object> paramMap = new Dictionary<string, object>();
                     paramMap["options"] = this.initParams;
 
@@ -716,7 +744,7 @@ public class Web3Auth : MonoBehaviour
             {
                 if (response != null)
                 {
-                    var shareMetadata = Newtonsoft.Json.JsonConvert.DeserializeObject<ShareMetadata>(response.message);
+                    var shareMetadata = JsonConvert.DeserializeObject<ShareMetadata>(response.message);
 
                     var aes256cbc = new AES256CBC(
                         sessionId,
@@ -726,7 +754,7 @@ public class Web3Auth : MonoBehaviour
 
                     var encryptedShareBytes = AES256CBC.toByteArray(new BigInteger(shareMetadata.ciphertext, 16));
                     var share = aes256cbc.decrypt(encryptedShareBytes, shareMetadata.mac);
-                    var tempJson = JsonConvert.DeserializeObject<JObject>(System.Text.Encoding.UTF8.GetString(share));
+                    var tempJson = JsonConvert.DeserializeObject<JObject>(Encoding.UTF8.GetString(share));
 
                     this.web3AuthResponse = JsonConvert.DeserializeObject<Web3AuthResponse>(tempJson.ToString());
                     if (this.web3AuthResponse != null)
@@ -772,7 +800,7 @@ public class Web3Auth : MonoBehaviour
             {
                 if (response != null)
                 {
-                    var shareMetadata = Newtonsoft.Json.JsonConvert.DeserializeObject<ShareMetadata>(response.message);
+                    var shareMetadata = JsonConvert.DeserializeObject<ShareMetadata>(response.message);
 
                     var aes256cbc = new AES256CBC(
                         sessionId,
@@ -780,7 +808,7 @@ public class Web3Auth : MonoBehaviour
                         shareMetadata.iv
                     );
 
-                    var encryptedData = aes256cbc.encrypt(System.Text.Encoding.UTF8.GetBytes(""));
+                    var encryptedData = aes256cbc.encrypt(Encoding.UTF8.GetBytes(""));
                     var encryptedMetadata = new ShareMetadata()
                     {
                         iv = shareMetadata.iv,
@@ -837,7 +865,7 @@ public class Web3Auth : MonoBehaviour
             ephemKey,
             KeyStoreManagerUtils.convertByteToHexadecimal(ivKey)
         );
-        var encryptedData = aes256cbc.encrypt(System.Text.Encoding.UTF8.GetBytes(data));
+        var encryptedData = aes256cbc.encrypt(Encoding.UTF8.GetBytes(data));
         var mac = aes256cbc.getMac(encryptedData);
         var encryptedMetadata = new ShareMetadata()
         {
@@ -887,6 +915,7 @@ public class Web3Auth : MonoBehaviour
         TaskCompletionSource<bool> fetchProjectConfigResponse = new TaskCompletionSource<bool>();
         StartCoroutine(Web3AuthApi.getInstance().fetchProjectConfig(this.web3AuthOptions.clientId, this.web3AuthOptions.web3AuthNetwork.ToString().ToLower(), (response =>
         {
+            projectConfigResponse = response;
             if (response != null)
             {
                 this.web3AuthOptions.originData = this.web3AuthOptions.originData.mergeMaps(response.whitelist?.signed_urls);
@@ -901,6 +930,13 @@ public class Web3Auth : MonoBehaviour
                         this.web3AuthOptions.whiteLabel = this.web3AuthOptions.whiteLabel?.merge(response.whitelabel);
                     }
                 }
+                
+                if (response?.whitelabel != null)
+                {
+                    this.web3AuthOptions.whiteLabel = this.web3AuthOptions.whiteLabel == null ? response.whitelabel : this.web3AuthOptions.whiteLabel?.merge(response.whitelabel);
+                    this.web3AuthOptions.walletServicesConfig.whiteLabel = this.web3AuthOptions.walletServicesConfig.whiteLabel == null ? response.whitelabel : this.web3AuthOptions.walletServicesConfig.whiteLabel?.merge(response.whitelabel);
+                }
+                
                 //Debug.Log("this.web3AuthOptions: =>" + JsonConvert.SerializeObject(this.web3AuthOptions));
 
                 JsonSerializerSettings settings = new JsonSerializerSettings
@@ -914,7 +950,7 @@ public class Web3Auth : MonoBehaviour
                 if(this.web3AuthOptions.originData != null)
                     this.initParams["originData"] = JsonConvert.SerializeObject(this.web3AuthOptions.originData, settings);
 
-               fetchProjectConfigResponse.SetResult(true);
+                fetchProjectConfigResponse.SetResult(true);
             }
             else
             {
@@ -930,7 +966,7 @@ public class Web3Auth : MonoBehaviour
         if (web3AuthResponse == null)
             return "";
 
-        return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitKey : web3AuthResponse.privateKey;
+        return web3AuthOptions.useSFAKey.Value ? web3AuthResponse.coreKitKey : web3AuthResponse.privateKey;
     }
 
     public string getEd25519PrivateKey()
@@ -938,7 +974,7 @@ public class Web3Auth : MonoBehaviour
         if (web3AuthResponse == null)
             return "";
 
-        return web3AuthOptions.useCoreKitKey.Value ? web3AuthResponse.coreKitEd25519PrivKey : web3AuthResponse.ed25519PrivateKey;
+        return web3AuthOptions.useSFAKey.Value ? web3AuthResponse.coreKitEd25519PrivKey : web3AuthResponse.ed25519PrivateKey;
     }
 
     public UserInfo getUserInfo()

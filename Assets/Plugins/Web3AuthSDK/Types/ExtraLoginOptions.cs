@@ -13,6 +13,7 @@ public class ExtraLoginOptions {
     public string ui_locales { get; set; }
     public string id_token { get; set; }
     public string access_token { get; set; }
+    private EmailFlowType flow_type { get; set; } = EmailFlowType.link;
     public string id_token_hint { get; set; }
     public string login_hint { get; set; }
     public string acr_values { get; set; }
@@ -23,4 +24,9 @@ public class ExtraLoginOptions {
     public string response_type { get; set; }
     public string nonce { get; set; }
     public string redirect_uri { get; set; }
+}
+
+public enum EmailFlowType
+{
+    link, code
 }
