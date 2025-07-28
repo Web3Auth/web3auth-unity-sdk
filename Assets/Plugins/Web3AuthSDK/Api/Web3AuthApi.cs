@@ -99,11 +99,11 @@ public class Web3AuthApi
             callback(null);
     }
 
-    public IEnumerator fetchProjectConfig(string project_id, string network, Action<ProjectConfigResponse> callback)
+    public IEnumerator fetchProjectConfig(string project_id, string network, string build_env, Action<ProjectConfigResponse> callback)
     {
         //Debug.Log("network =>" + network);
         string baseUrl = SIGNER_MAP[network];
-        var requestURL = $"{baseUrl}/api/configuration?project_id={project_id}&network={network}&whitelist=true";
+        var requestURL = $"{baseUrl}/api/v2/configuration?project_id={project_id}&network={network}&build_env={build_env}";
         var request = UnityWebRequest.Get(requestURL);
 
         yield return request.SendWebRequest();
@@ -111,6 +111,7 @@ public class Web3AuthApi
         if (request.result == UnityWebRequest.Result.Success)
         {
             string result = request.downloadHandler.text;
+			//Debug.Log("fetch config raw API result: " + result);
             callback(Newtonsoft.Json.JsonConvert.DeserializeObject<ProjectConfigResponse>(result));
         }
         else
