@@ -19,6 +19,6 @@ public class ProjectConfigResponse
     public List<AuthConnectionConfig> embeddedWalletAuth { get; set; }
     public bool sms_otp_enabled { get; set; }
     public bool wallet_connect_enabled { get; set; }
-    public string wallet_connect_project_id { get; set; }
+    public string walletConnectProjectId { get; set; }
     public WhiteLabelData whitelabel { get; set; }
 }

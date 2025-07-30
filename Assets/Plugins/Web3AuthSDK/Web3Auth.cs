@@ -11,7 +11,6 @@ using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Org.BouncyCastle.Math;
 using UnityEngine;
-using Web3AuthSDK.Editor;
 
 public class Web3Auth : MonoBehaviour
 {
@@ -88,7 +87,7 @@ public class Web3Auth : MonoBehaviour
             onDeepLinkActivated(Application.absoluteURL);
 
 #if UNITY_EDITOR
-        Web3AuthDebug.onURLRecieved += (Uri url) =>
+        Web3AuthSDK.Editor.Web3AuthDebug.onURLRecieved += (Uri url) =>
         {
             this.setResultUrl(url);
         };
@@ -370,17 +369,28 @@ public class Web3Auth : MonoBehaviour
             this.initParams["redirectUrl"] = Utils.GetCurrentURL();
 #endif
 
-                if (projectConfigResponse?.chains != null)
-                {
-                    string chainsJson = JsonConvert.SerializeObject(projectConfigResponse.chains, Formatting.None, new JsonSerializerSettings
-                    {
-                        Converters = new List<JsonConverter> { new StringEnumConverter() },
-                        NullValueHandling = NullValueHandling.Ignore
-                    });
-                    this.initParams["chains"] = chainsJson;
-                }
-                
-                this.initParams["chainId"] = web3AuthOptions.defaultChainId ?? "0x1";
+                if (projectConfigResponse?.chains != null && projectConfigResponse.chains.Count > 0)
+    			{
+        			string chainsJson = JsonConvert.SerializeObject(projectConfigResponse.chains, Formatting.None, new JsonSerializerSettings
+        			{
+            				Converters = new List<JsonConverter> { new StringEnumConverter() },
+            				NullValueHandling = NullValueHandling.Ignore
+        			});
+    				
+        			this.initParams["chains"] = chainsJson;
+
+       				// Set defaultChainId and chainId based on the first chain
+        			var firstChainId = projectConfigResponse.chains[0]?.chainId ?? web3AuthOptions.defaultChainId ?? "0x1";
+        			this.initParams["defaultChainId"] = firstChainId;
+        			this.initParams["chainId"] = firstChainId;
+    			}
+    			else
+    			{
+        			// Fallback to web3AuthOptions.defaultChainId or "0x1"
+        			string fallbackChainId = web3AuthOptions.defaultChainId ?? "0x1";
+        			this.initParams["defaultChainId"] = fallbackChainId;
+        			this.initParams["chainId"] = fallbackChainId;
+    			}
                 
                 if (projectConfigResponse?.embeddedWalletAuth != null)
                 {
@@ -643,16 +653,29 @@ public class Web3Auth : MonoBehaviour
                     this.initParams["redirectUrl"] = Utils.GetCurrentURL();
 #endif
 
-                    if (projectConfigResponse?.chains != null)
-                    {
-                        string chainsJson = JsonConvert.SerializeObject(projectConfigResponse.chains, Formatting.None, new JsonSerializerSettings
-                        {
-                            Converters = new List<JsonConverter> { new StringEnumConverter() },
-                            NullValueHandling = NullValueHandling.Ignore
-                        });
-                        this.initParams["chains"] = chainsJson;
-                    }
-                    this.initParams["chainId"] = web3AuthOptions.defaultChainId ?? "0x1";   
+                   if (projectConfigResponse?.chains != null && projectConfigResponse.chains.Count > 0)
+    			   {
+        				string chainsJson = JsonConvert.SerializeObject(projectConfigResponse.chains, Formatting.None, new JsonSerializerSettings
+        				{
+            				Converters = new List<JsonConverter> { new StringEnumConverter() },
+            				NullValueHandling = NullValueHandling.Ignore
+        				});
+    					Debug.Log("Chain JSON:\n" + chainsJson);
+        				this.initParams["chains"] = chainsJson;
+
+       					// Set defaultChainId and chainId based on the first chain
+        				var firstChainId = projectConfigResponse.chains[0]?.chainId ?? web3AuthOptions.defaultChainId ?? "0x1";
+        				this.initParams["defaultChainId"] = firstChainId;
+        				this.initParams["chainId"] = firstChainId;
+    				}
+    				else
+    				{
+        				// Fallback to web3AuthOptions.defaultChainId or "0x1"
+        				string fallbackChainId = web3AuthOptions.defaultChainId ?? "0x1";
+        				this.initParams["defaultChainId"] = fallbackChainId;
+        				this.initParams["chainId"] = fallbackChainId;
+    				}
+ 
                     if (projectConfigResponse?.embeddedWalletAuth != null)
                     {
                         this.initParams["embeddedWalletAuth"] = projectConfigResponse.embeddedWalletAuth;
@@ -671,6 +694,7 @@ public class Web3Auth : MonoBehaviour
                     }
 
                     var newSessionId = KeyStoreManagerUtils.generateRandomSessionKey();
+					//Debug.Log("paramMap durinr request func: =>" + JsonConvert.SerializeObject(paramMap));
                     string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
                         new JsonSerializerSettings
                         {
@@ -729,7 +753,7 @@ public class Web3Auth : MonoBehaviour
         if (string.IsNullOrEmpty(newSessionId))
         {
             sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
-            Debug.Log("sessionId during  authorizeSession in if part =>" + sessionId);
+            //Debug.Log("sessionId during  authorizeSession in if part =>" + sessionId);
         }
         else
         {
@@ -742,7 +766,7 @@ public class Web3Auth : MonoBehaviour
             //Debug.Log("origin: =>" + origin);
             StartCoroutine(Web3AuthApi.getInstance().authorizeSession(pubKey, origin, (response =>
             {
-                if (response != null)
+                if (response != null && !string.IsNullOrEmpty(response.message))
                 {
                     var shareMetadata = JsonConvert.DeserializeObject<ShareMetadata>(response.message);
 
@@ -913,29 +937,25 @@ public class Web3Auth : MonoBehaviour
     private async Task<bool> fetchProjectConfig()
     {
         TaskCompletionSource<bool> fetchProjectConfigResponse = new TaskCompletionSource<bool>();
-        StartCoroutine(Web3AuthApi.getInstance().fetchProjectConfig(this.web3AuthOptions.clientId, this.web3AuthOptions.web3AuthNetwork.ToString().ToLower(), (response =>
+        StartCoroutine(Web3AuthApi.getInstance().fetchProjectConfig(this.web3AuthOptions.clientId, this.web3AuthOptions.web3AuthNetwork.ToString().ToLower(),
+            this.web3AuthOptions.authBuildEnv.ToString().ToLower(), (response =>
         {
             projectConfigResponse = response;
             if (response != null)
             {
                 this.web3AuthOptions.originData = this.web3AuthOptions.originData.mergeMaps(response.whitelist?.signed_urls);
                 if (response?.whitelabel != null)
-                {
-                    if (this.web3AuthOptions.whiteLabel == null)
-                    {
-                        this.web3AuthOptions.whiteLabel = response.whitelabel;
-                    }
-                    else
-                    {
-                        this.web3AuthOptions.whiteLabel = this.web3AuthOptions.whiteLabel?.merge(response.whitelabel);
-                    }
-                }
-                
-                if (response?.whitelabel != null)
-                {
-                    this.web3AuthOptions.whiteLabel = this.web3AuthOptions.whiteLabel == null ? response.whitelabel : this.web3AuthOptions.whiteLabel?.merge(response.whitelabel);
-                    this.web3AuthOptions.walletServicesConfig.whiteLabel = this.web3AuthOptions.walletServicesConfig.whiteLabel == null ? response.whitelabel : this.web3AuthOptions.walletServicesConfig.whiteLabel?.merge(response.whitelabel);
-                }
+				{
+    				var whitelabel = response.whitelabel;
+
+    				this.web3AuthOptions.whiteLabel = this.web3AuthOptions.whiteLabel?.merge(whitelabel) ?? whitelabel;
+
+    				if (this.web3AuthOptions.walletServicesConfig != null)
+    				{
+        				this.web3AuthOptions.walletServicesConfig.whiteLabel = 
+            				this.web3AuthOptions.walletServicesConfig.whiteLabel?.merge(whitelabel) ?? whitelabel;
+    				}
+				}
                 
                 //Debug.Log("this.web3AuthOptions: =>" + JsonConvert.SerializeObject(this.web3AuthOptions));
 
