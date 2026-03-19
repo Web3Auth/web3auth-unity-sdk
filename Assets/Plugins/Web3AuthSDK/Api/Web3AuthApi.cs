@@ -42,8 +42,22 @@ public class Web3AuthApi
          //Debug.Log("request.downloadHandler.text =>" + request.downloadHandler.text);
         if (request.result == UnityWebRequest.Result.Success)
         {
-            string result = request.downloadHandler.text;
-            callback(Newtonsoft.Json.JsonConvert.DeserializeObject<StoreApiResponse>(result));
+            string result = request.downloadHandler?.text;
+            if (!string.IsNullOrEmpty(result))
+            {
+                try
+                {
+                    callback(Newtonsoft.Json.JsonConvert.DeserializeObject<StoreApiResponse>(result));
+                }
+                catch (Exception)
+                {
+                    callback(null);
+                }
+            }
+            else
+            {
+                callback(null);
+            }
         }
         else
             callback(null);
