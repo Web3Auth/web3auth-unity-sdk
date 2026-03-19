@@ -45,14 +45,16 @@ public class Web3AuthApi
             string result = request.downloadHandler?.text;
             if (!string.IsNullOrEmpty(result))
             {
+                StoreApiResponse response = null;
                 try
                 {
-                    callback(Newtonsoft.Json.JsonConvert.DeserializeObject<StoreApiResponse>(result));
+                    response = Newtonsoft.Json.JsonConvert.DeserializeObject<StoreApiResponse>(result);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    callback(null);
+                    Debug.LogWarning($"Web3Auth: Failed to deserialize store response: {ex.Message}");
                 }
+                callback(response);
             }
             else
             {
