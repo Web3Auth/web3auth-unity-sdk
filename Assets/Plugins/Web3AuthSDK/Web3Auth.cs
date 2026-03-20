@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
@@ -471,6 +471,11 @@ public class Web3Auth : MonoBehaviour
         {
             Debug.Log("Failed to decode JSON: " + e.Message);
         }
+        if (sessionResponse == null || string.IsNullOrEmpty(sessionResponse.sessionId))
+        {
+            Debug.LogError("Web3Auth: Invalid or missing session response (sessionId is null or empty).");
+            return;
+        }
         string sessionId = sessionResponse.sessionId;
         this.Enqueue(() => KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.SESSION_ID, sessionId));
         this.Enqueue(() => KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.REDIRECT_URL, redirectUrl));
@@ -699,9 +704,16 @@ public class Web3Auth : MonoBehaviour
             //Debug.Log("origin: =>" + origin);
             StartCoroutine(Web3AuthApi.getInstance().authorizeSession(pubKey, origin, (response =>
             {
-                if (response != null)
+                if (response != null && !string.IsNullOrEmpty(response.message))
                 {
                     var shareMetadata = Newtonsoft.Json.JsonConvert.DeserializeObject<ShareMetadata>(response.message);
+                    if (shareMetadata == null || string.IsNullOrEmpty(shareMetadata.ephemPublicKey) ||
+                        string.IsNullOrEmpty(shareMetadata.iv) || string.IsNullOrEmpty(shareMetadata.ciphertext) ||
+                        string.IsNullOrEmpty(shareMetadata.mac))
+                    {
+                        Debug.LogWarning("Web3Auth: Store response missing required share metadata (e.g. after passwordless login). Session may not be ready yet.");
+                        return;
+                    }
 
                     var aes256cbc = new AES256CBC(
                         sessionId,
@@ -712,6 +724,11 @@ public class Web3Auth : MonoBehaviour
                     var encryptedShareBytes = AES256CBC.toByteArray(new BigInteger(shareMetadata.ciphertext, 16));
                     var share = aes256cbc.decrypt(encryptedShareBytes, shareMetadata.mac);
                     var tempJson = JsonConvert.DeserializeObject<JObject>(System.Text.Encoding.UTF8.GetString(share));
+                    if (tempJson == null)
+                    {
+                        Debug.LogWarning("Web3Auth: Failed to parse decrypted session data.");
+                        return;
+                    }
 
                     this.web3AuthResponse = JsonConvert.DeserializeObject<Web3AuthResponse>(tempJson.ToString());
                     if (this.web3AuthResponse != null)
@@ -727,18 +744,21 @@ public class Web3Auth : MonoBehaviour
                             //Debug.Log("redirectUrl: =>" + redirectUrl);
                         }
 
-                        if (!string.IsNullOrEmpty(web3AuthResponse.userInfo?.dappShare))
+                        if (web3AuthResponse.userInfo != null && !string.IsNullOrEmpty(web3AuthResponse.userInfo.dappShare) &&
+                            !string.IsNullOrEmpty(web3AuthResponse.userInfo.verifier))
                         {
                             KeyStoreManagerUtils.savePreferenceData(
-                                        web3AuthResponse.userInfo?.verifier, web3AuthResponse.userInfo?.dappShare
+                                        web3AuthResponse.userInfo.verifier, web3AuthResponse.userInfo.dappShare
                             );
                         }
 
                         if (string.IsNullOrEmpty(this.web3AuthResponse.privKey) || string.IsNullOrEmpty(this.web3AuthResponse.privKey.Trim('0')))
                             this.Enqueue(() => this.onLogout?.Invoke());
                         else
+                        {
                             this.Enqueue(() => this.onLogin?.Invoke(this.web3AuthResponse));
                             this.Enqueue(() => this.onMFASetup?.Invoke(true));
+                        }
                     }
                 }
 
