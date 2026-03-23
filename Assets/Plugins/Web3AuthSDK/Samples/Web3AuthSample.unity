@@ -1018,7 +1018,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   clientId: BHgArYmWwSeq21czpcarYh0EVq2WWOzflX-NTK-tY1-1pauPzHKRRLgpABkmYiIV_og9jAvoIxQ8L3Smrwe04Lw
   redirectUri: torusapp://com.torus.Web3AuthUnity/auth
-  network: 5
+  network: 4
 --- !u!1 &505954357
 GameObject:
   m_ObjectHideFlags: 0
