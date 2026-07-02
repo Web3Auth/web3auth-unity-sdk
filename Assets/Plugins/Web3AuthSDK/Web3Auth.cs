@@ -100,9 +100,26 @@ public class Web3Auth : MonoBehaviour
 #endif
     }
 
+    private string getResolvedClientId()
+    {
+        if (!string.IsNullOrEmpty(this.web3AuthOptions?.clientId))
+            return this.web3AuthOptions.clientId;
+
+        return this.clientId;
+    }
+
     public async void setOptions(Web3AuthOptions web3AuthOptions)
     {
         this.web3AuthOptions = web3AuthOptions;
+
+        var resolvedClientId = getResolvedClientId();
+        if (string.IsNullOrEmpty(resolvedClientId))
+        {
+            throw new Exception("clientId is required. Set it in Web3AuthOptions or the Web3Auth Inspector field.");
+        }
+
+        this.web3AuthOptions.clientId = resolvedClientId;
+        this.initParams["clientId"] = resolvedClientId;
 
         bool isfetchConfigSuccess = await fetchProjectConfig();
 
@@ -127,9 +144,6 @@ public class Web3Auth : MonoBehaviour
 
             if (this.web3AuthOptions.loginConfig != null)
                 this.initParams["loginConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.loginConfig, settings);
-
-            if (this.web3AuthOptions.clientId != null)
-                this.initParams["clientId"] = this.web3AuthOptions.clientId;
 
             if (this.web3AuthOptions.buildEnv != null)
                 this.initParams["buildEnv"] = this.web3AuthOptions.buildEnv.ToString().ToLower();
@@ -921,7 +935,7 @@ public class Web3Auth : MonoBehaviour
     {
         TaskCompletionSource<bool> fetchProjectConfigResponse = new TaskCompletionSource<bool>();
         StartCoroutine(Web3AuthApi.getInstance().fetchProjectConfig(
-            this.web3AuthOptions.clientId,
+            getResolvedClientId(),
             this.web3AuthOptions.network.ToString().ToLower(),
             (response =>
         {
