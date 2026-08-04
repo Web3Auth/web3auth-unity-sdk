@@ -1,7 +1,7 @@
 using System.Collections;
 using System;
-using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine.Networking;
 using UnityEngine;
 using System.Collections.Generic;
@@ -18,32 +18,48 @@ public class Web3AuthApi
         return instance;
     }
 
-    public IEnumerator authorizeSession(string key, string origin, Action<StoreApiResponse> callback)
+    static string getOriginFromRedirectUrl(string redirectUrl)
     {
-        //var requestURL = $"{baseAddress}/store/get?key={key}";
-        //var request = UnityWebRequest.Get(requestURL);
+        if (string.IsNullOrEmpty(redirectUrl))
+            return redirectUrl;
+        if (!Uri.TryCreate(redirectUrl, UriKind.Absolute, out var uri))
+            return redirectUrl;
+        return uri.GetLeftPart(UriPartial.Authority);
+    }
+
+    public IEnumerator authorizeSession(string key, string redirectUrl, Action<StoreApiResponse> callback)
+    {
         var requestURL = $"{baseAddress}/store/get";
-        //Debug.Log("Request URL => " + requestURL);
 
         WWWForm data = new WWWForm();
         data.AddField("key", key);
 
         var request = UnityWebRequest.Post(requestURL, data);
-        request.SetRequestHeader("origin", origin);
+        request.SetRequestHeader("origin", getOriginFromRedirectUrl(redirectUrl));
 
         yield return request.SendWebRequest();
-         //Debug.Log("baseAddress =>" + baseAddress);
-         //Debug.Log("key =>" + key);
-         //Debug.Log("request URL =>"+ request);
-         //Debug.Log("request.isNetworkError =>" + request.isNetworkError);
-         //Debug.Log("request.isHttpError =>" + request.isHttpError);
-         //Debug.Log("request.isHttpError =>" + request.error);
-         //Debug.Log("request.result =>" + request.result);
-         //Debug.Log("request.downloadHandler.text =>" + request.downloadHandler.text);
+
         if (request.result == UnityWebRequest.Result.Success)
         {
-            string result = request.downloadHandler.text;
-            callback(Newtonsoft.Json.JsonConvert.DeserializeObject<StoreApiResponse>(result));
+            string result = request.downloadHandler?.text;
+            if (!string.IsNullOrEmpty(result))
+            {
+                StoreApiResponse response = null;
+                try
+                {
+                    response = JsonConvert.DeserializeObject<StoreApiResponse>(result);
+                }
+                catch
+                {
+                    response = null;
+                }
+
+                callback(response);
+            }
+            else
+            {
+                callback(null);
+            }
         }
         else
             callback(null);
@@ -56,24 +72,14 @@ public class Web3AuthApi
         data.AddField("data", logoutApiRequest.data);
         data.AddField("signature", logoutApiRequest.signature);
         data.AddField("timeout", logoutApiRequest.timeout.ToString());
-        // Debug.Log("key during logout session =>" + logoutApiRequest.key);
 
         var request = UnityWebRequest.Post($"{baseAddress}/store/set", data);
         yield return request.SendWebRequest();
 
-        // Debug.Log("baseAddress =>" + baseAddress);
-        // Debug.Log("key =>" + logoutApiRequest.key);
-        // Debug.Log("request URL =>"+ requestURL);
-        // Debug.Log("request.isNetworkError =>" + request.isNetworkError);
-        // Debug.Log("request.isHttpError =>" + request.isHttpError);
-        // Debug.Log("request.isHttpError =>" + request.error);
-        // Debug.Log("request.result =>" + request.result);
-        // Debug.Log("request.downloadHandler.text =>" + request.downloadHandler.text);
-
         if (request.result == UnityWebRequest.Result.Success)
         {
             string result = request.downloadHandler.text;
-            callback(Newtonsoft.Json.JsonConvert.DeserializeObject<JObject>(result));
+            callback(JsonConvert.DeserializeObject<JObject>(result));
         }
         else
             callback(null);
@@ -93,7 +99,7 @@ public class Web3AuthApi
         if (request.result == UnityWebRequest.Result.Success)
         {
             string result = request.downloadHandler.text;
-            callback(Newtonsoft.Json.JsonConvert.DeserializeObject<JObject>(result));
+            callback(JsonConvert.DeserializeObject<JObject>(result));
         }
         else
             callback(null);
@@ -101,9 +107,9 @@ public class Web3AuthApi
 
     public IEnumerator fetchProjectConfig(string project_id, string network, string build_env, Action<ProjectConfigResponse> callback)
     {
-        //Debug.Log("network =>" + network);
         string baseUrl = SIGNER_MAP[network];
         var requestURL = $"{baseUrl}/api/v2/configuration?project_id={project_id}&network={network}&build_env={build_env}";
+
         var request = UnityWebRequest.Get(requestURL);
 
         yield return request.SendWebRequest();
@@ -111,8 +117,7 @@ public class Web3AuthApi
         if (request.result == UnityWebRequest.Result.Success)
         {
             string result = request.downloadHandler.text;
-			//Debug.Log("fetch config raw API result: " + result);
-            callback(Newtonsoft.Json.JsonConvert.DeserializeObject<ProjectConfigResponse>(result));
+            callback(JsonConvert.DeserializeObject<ProjectConfigResponse>(result));
         }
         else
             callback(null);
