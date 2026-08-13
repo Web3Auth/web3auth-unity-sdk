@@ -92,4 +92,11 @@ public static class Utils
     }
 
 
+    public const string LOCAL_REDIRECT_HOST = "localhost";
+
+    public static string GetLocalRedirectBaseUrl(string host = null)
+    {
+        var redirectHost = string.IsNullOrWhiteSpace(host) ? LOCAL_REDIRECT_HOST : host.Trim();
+        return $"http://{redirectHost}:{LOCAL_REDIRECT_PORT}";
+    }
 }

@@ -102,10 +102,11 @@ public class Web3AuthSample : MonoBehaviour
                     clientId = "d84f6xvbdV75VTGmHiMWfZLeSPk8M07C"
                 }
             },
-            clientId = "BHgArYmWwSeq21czpcarYh0EVq2WWOzflX-NTK-tY1-1pauPzHKRRLgpABkmYiIV_og9jAvoIxQ8L3Smrwe04Lw",
-            authBuildEnv = BuildEnv.TESTING,
+            clientId = "BPrPLO2tetqnI5UsOuuGK9SSmMGrRHi-y6LEtKp6PW5P1btBYqNkLFFtExK53PqOt-H9JszGhfQOq2FOGGNf-TE",
+            authBuildEnv = BuildEnv.PRODUCTION,
             redirectUrl = new Uri("torusapp://com.torus.Web3AuthUnity"),
-            web3AuthNetwork = Web3Auth.Network.SAPPHIRE_DEVNET,
+            localRedirectHost = "web3auth.localtest.me",
+            web3AuthNetwork = Web3Auth.Network.SAPPHIRE_MAINNET,
             defaultChainId = "0x1",
             sessionTime = 86400
         });

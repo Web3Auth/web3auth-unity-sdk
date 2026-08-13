@@ -117,10 +117,21 @@ public class Web3AuthApi
         if (request.result == UnityWebRequest.Result.Success)
         {
             string result = request.downloadHandler.text;
-            callback(JsonConvert.DeserializeObject<ProjectConfigResponse>(result));
+            try
+            {
+                callback(JsonConvert.DeserializeObject<ProjectConfigResponse>(result));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Failed to deserialize project config: {ex.Message}\nRaw: {result}");
+                callback(null);
+            }
         }
         else
+        {
+            Debug.LogError($"Failed to fetch project config ({request.responseCode}): {request.downloadHandler?.text ?? request.error}\nURL: {requestURL}");
             callback(null);
+        }
     }
 
     public static Dictionary<string, string> SIGNER_MAP = new Dictionary<string, string>()

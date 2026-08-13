@@ -70,6 +70,10 @@ public class Web3Auth : MonoBehaviour
     private Network network;
     private string redirectUrl;
 
+#if UNITY_STANDALONE || UNITY_EDITOR
+    private HttpListener localHttpListener;
+#endif
+
     private static readonly Queue<Action> _executionQueue = new Queue<Action>();
 
     public void Awake()
@@ -173,42 +177,81 @@ public class Web3Auth : MonoBehaviour
     }
 
 #if UNITY_STANDALONE || UNITY_EDITOR
+    private void StopLocalWebserver()
+    {
+        if (localHttpListener == null)
+            return;
+
+        try
+        {
+            if (localHttpListener.IsListening)
+                localHttpListener.Stop();
+            localHttpListener.Close();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("Failed to stop local redirect server: " + ex.Message);
+        }
+        finally
+        {
+            localHttpListener = null;
+        }
+    }
+
     private string StartLocalWebserver()
     {
-        HttpListener httpListener = new HttpListener();
+        // Always free the previous listener so a second wallet/MFA/sign flow can bind the same port.
+        StopLocalWebserver();
 
-        var redirectUrl = $"http://localhost:{Utils.GetRandomUnusedPort()}";
+        localHttpListener = new HttpListener();
 
-        httpListener.Prefixes.Add($"{redirectUrl}/complete/");
-        httpListener.Prefixes.Add($"{redirectUrl}/auth/");
-        httpListener.Start();
-        httpListener.BeginGetContext(new AsyncCallback(IncomingHttpRequest), httpListener);
+        var redirectUrl = Utils.GetLocalRedirectBaseUrl(this.web3AuthOptions?.localRedirectHost);
+
+        localHttpListener.Prefixes.Add($"{redirectUrl}/complete/");
+        localHttpListener.Prefixes.Add($"{redirectUrl}/auth/");
+        try
+        {
+            localHttpListener.Start();
+        }
+        catch (HttpListenerException ex)
+        {
+            localHttpListener = null;
+            throw new Exception(
+                $"Failed to start local redirect server at {redirectUrl}. " +
+                $"Make sure the host resolves to this machine and the port is free. ({ex.Message})");
+        }
+        localHttpListener.BeginGetContext(new AsyncCallback(IncomingHttpRequest), localHttpListener);
 
         return redirectUrl + "/complete/";
     }
 
     private void IncomingHttpRequest(IAsyncResult result)
     {
-
-        // get back the reference to our http listener
         HttpListener httpListener = (HttpListener)result.AsyncState;
 
-        // fetch the context object
-        HttpListenerContext httpContext = httpListener.EndGetContext(result);
+        // Listener may have been stopped/replaced by a newer StartLocalWebserver call.
+        if (httpListener == null || !httpListener.IsListening)
+            return;
 
-        // if we'd like the HTTP listener to accept more incoming requests, we'd just restart the "get context" here:
-        // httpListener.BeginGetContext(new AsyncCallback(IncomingHttpRequest),httpListener);
-        // however, since we only want/expect the one, single auth redirect, we don't need/want this, now.
-        // but this is what you would do if you'd want to implement more (simple) "webserver" functionality
-        // in your project.
+        HttpListenerContext httpContext;
+        try
+        {
+            httpContext = httpListener.EndGetContext(result);
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+        catch (HttpListenerException)
+        {
+            return;
+        }
 
-        // the context object has the request object for us, that holds details about the incoming request
         HttpListenerRequest httpRequest = httpContext.Request;
         HttpListenerResponse httpResponse = httpContext.Response;
 
         if (httpRequest.Url.LocalPath == "/complete/")
         {
-
             httpListener.BeginGetContext(new AsyncCallback(IncomingHttpRequest), httpListener);
 
             var responseString = @"
@@ -237,7 +280,7 @@ public class Web3Auth : MonoBehaviour
                     if (window.location.hash.trim() == """") {
                         document.querySelector(""#error"").style.display=""flex"";
                     } else {
-                        fetch(`http://${window.location.host}/auth/?code=${window.location.hash.slice(1,window.location.hash.length)}`).then(function(response) {
+                        fetch(`http://${window.location.host}/auth/?code=${encodeURIComponent(window.location.hash.slice(1))}`).then(function(response) {
                           console.log(response);
                           document.querySelector(""#success"").style.display=""flex"";
                         }).catch(function(error) {
@@ -276,7 +319,12 @@ public class Web3Auth : MonoBehaviour
                 this.setResultUrl(new Uri($"http://localhost#{code}"));
             }
 
-            httpListener.Close();
+            if (ReferenceEquals(localHttpListener, httpListener))
+                StopLocalWebserver();
+            else
+            {
+                try { httpListener.Close(); } catch { /* ignored */ }
+            }
         }
     }
 #endif
@@ -506,7 +554,7 @@ public class Web3Auth : MonoBehaviour
         SessionResponse sessionResponse = null;
         try
         {
-            sessionResponse = JsonUtility.FromJson<SessionResponse>(decodedString);
+            sessionResponse = JsonConvert.DeserializeObject<SessionResponse>(decodedString);
         }
         catch (Exception e)
         {
@@ -514,10 +562,17 @@ public class Web3Auth : MonoBehaviour
         }
         if (sessionResponse == null || string.IsNullOrEmpty(sessionResponse.sessionId))
         {
-            Debug.LogError("Invalid or missing session response (sessionId is null or empty).");
+            Debug.LogError("Invalid or missing session response (sessionId is null or empty). Decoded: " + decodedString);
             return;
         }
-        string sessionId = sessionResponse.sessionId;
+        string sessionId = KeyStoreManagerUtils.normalizeSessionId(sessionResponse.sessionId);
+        if (!KeyStoreManagerUtils.isValidSessionId(sessionId))
+        {
+            Debug.LogError(
+                "Invalid sessionId format from redirect (expected hex private key). " +
+                $"length={sessionResponse.sessionId?.Length}, decoded={decodedString}");
+            return;
+        }
         this.Enqueue(() => KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.SESSION_ID, sessionId));
         this.Enqueue(() => KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.REDIRECT_URL, redirectUrl));
 
@@ -540,12 +595,16 @@ public class Web3Auth : MonoBehaviour
             string[] queryParameters = uri.Query.Substring(1).Split('&');
             foreach (string queryParameter in queryParameters)
             {
-                string[] keyValue = queryParameter.Split('=');
-                if (keyValue[0] == key)
-                {
-                    value = keyValue[1];
-                    break;
-                }
+                int separator = queryParameter.IndexOf('=');
+                if (separator <= 0)
+                    continue;
+
+                string paramKey = Uri.UnescapeDataString(queryParameter.Substring(0, separator));
+                if (paramKey != key)
+                    continue;
+
+                value = Uri.UnescapeDataString(queryParameter.Substring(separator + 1));
+                break;
             }
         }
         return value;
@@ -555,8 +614,8 @@ public class Web3Auth : MonoBehaviour
     {
         if(string.IsNullOrEmpty(base64Params))
             return string.Empty;
-        // Replace URL-safe characters
-        base64Params = base64Params.Replace('-', '+').Replace('_', '/');
+        // Replace URL-safe characters and spaces introduced by poorly encoded query strings
+        base64Params = base64Params.Replace('-', '+').Replace('_', '/').Replace(' ', '+');
         var d = base64Params.Length % 4;
         if (d != 0)
         {
@@ -813,7 +872,20 @@ public class Web3Auth : MonoBehaviour
 
         if (!string.IsNullOrEmpty(sessionId))
         {
+            sessionId = KeyStoreManagerUtils.normalizeSessionId(sessionId);
+            if (!KeyStoreManagerUtils.isValidSessionId(sessionId))
+            {
+                Debug.LogError($"authorizeSession: stored sessionId is not valid hex (length={sessionId.Length}). Clearing it.");
+                KeyStoreManagerUtils.deletePreferencesData(KeyStoreManagerUtils.SESSION_ID);
+                return;
+            }
+
             var pubKey = KeyStoreManagerUtils.getPubKey(sessionId);
+            if (string.IsNullOrEmpty(pubKey))
+            {
+                Debug.LogError("authorizeSession: failed to derive public key from sessionId.");
+                return;
+            }
             StartCoroutine(Web3AuthApi.getInstance().authorizeSession(pubKey, origin, (response =>
             {
                 if (response != null && !string.IsNullOrEmpty(response.message))
@@ -852,7 +924,11 @@ public class Web3Auth : MonoBehaviour
 
                         if (!string.IsNullOrEmpty(this.web3AuthResponse.sessionId))
                         {
-                            KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.SESSION_ID, this.web3AuthResponse.sessionId);
+                            var responseSessionId = KeyStoreManagerUtils.normalizeSessionId(this.web3AuthResponse.sessionId);
+                            if (KeyStoreManagerUtils.isValidSessionId(responseSessionId))
+                            {
+                                KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.SESSION_ID, responseSessionId);
+                            }
                         }
 
                         if (web3AuthResponse.userInfo != null && !string.IsNullOrEmpty(web3AuthResponse.userInfo.dappShare) &&
@@ -1069,6 +1145,14 @@ public class Web3Auth : MonoBehaviour
             throw new Exception(Web3AuthError.getError(ErrorCode.NOUSERFOUND));
 
         return web3AuthResponse.userInfo;
+    }
+
+    private void OnDestroy()
+    {
+#if UNITY_STANDALONE || UNITY_EDITOR
+        StopLocalWebserver();
+#endif
+        Application.deepLinkActivated -= onDeepLinkActivated;
     }
 
     public void Update()

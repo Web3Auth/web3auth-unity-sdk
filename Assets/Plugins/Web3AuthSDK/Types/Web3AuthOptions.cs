@@ -9,6 +9,7 @@ public class Web3AuthOptions {
     public string clientId { get; set; }
     public Uri redirectUrl { get; set; }
     public Dictionary<string, string> originData { get; set; } = null;
+    public string localRedirectHost { get; set; } = Utils.LOCAL_REDIRECT_HOST;
     
     [JsonProperty("buildEnv")]
     public Web3Auth.BuildEnv authBuildEnv { get; set; } = Web3Auth.BuildEnv.PRODUCTION;
@@ -66,6 +67,6 @@ public class Web3AuthOptions {
     public WalletServicesConfig? walletServicesConfig { get; set; }
     public MfaSettings? mfaSettings { get; set; } = null;
 
-    private const string authDashboardVersion = "v9";
+    private const string authDashboardVersion = "v10";
     private const string walletAccountConstant = "wallet/account";
 }

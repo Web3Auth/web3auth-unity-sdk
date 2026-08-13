@@ -1,13 +1,15 @@
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace Plugins.Web3AuthSDK.Types
 {
     public class SmartAccountsConfig
     {
-        public SmartAccountType SmartAccountType { get; set; }
-        
+        public SmartAccountType smartAccountType { get; set; }
+
         public SmartAccountWalletScope walletScope { get; set; }
-        
+
         public List<ChainConfig> chains { get; set; }
     }
 
@@ -19,13 +21,22 @@ namespace Plugins.Web3AuthSDK.Types
     }
 }
 
+[JsonConverter(typeof(StringEnumConverter))]
 public enum SmartAccountWalletScope
 {
     embedded,
     all
 }
 
+[JsonConverter(typeof(StringEnumConverter))]
 public enum SmartAccountType
 {
-    biconomy, kernel, safe, trust, light, simple, nexus
+    metamask,
+    biconomy,
+    kernel,
+    safe,
+    trust,
+    light,
+    simple,
+    nexus
 }

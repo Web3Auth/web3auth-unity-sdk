@@ -1016,9 +1016,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3eab2a0bf902d6e4b9c2e968ad89f528, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  clientId: BHgArYmWwSeq21czpcarYh0EVq2WWOzflX-NTK-tY1-1pauPzHKRRLgpABkmYiIV_og9jAvoIxQ8L3Smrwe04Lw
+  clientId: BPrPLO2tetqnI5UsOuuGK9SSmMGrRHi-y6LEtKp6PW5P1btBYqNkLFFtExK53PqOt-H9JszGhfQOq2FOGGNf-TE
   redirectUri: torusapp://com.torus.Web3AuthUnity/auth
-  network: 4
+  network: 5
 --- !u!1 &505954357
 GameObject:
   m_ObjectHideFlags: 0
