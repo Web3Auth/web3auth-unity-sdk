@@ -26,7 +26,7 @@ public class Web3AuthOptions {
         set { }
     }
     
-    public List<AuthConnectionConfig>? authConnectionConfig { get; set; } = new List<AuthConnectionConfig>();
+    public List<AuthConnectionConfig>? authConnectionConfig { get; set; } = null;
     public WhiteLabelData? whiteLabel { get; set; }
     public string dashboardUrl
     {

@@ -91,6 +91,8 @@ public class Web3Auth : MonoBehaviour
             onDeepLinkActivated(Application.absoluteURL);
 
 #if UNITY_EDITOR
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+
         Web3AuthSDK.Editor.Web3AuthDebug.onURLRecieved += (Uri url) =>
         {
             this.setResultUrl(url);
@@ -106,6 +108,14 @@ public class Web3Auth : MonoBehaviour
 //        } 
 #endif
     }
+
+#if UNITY_EDITOR
+    private void OnBeforeAssemblyReload()
+    {
+        // Close HttpListener before domain reload to avoid "invalid GC handle" warnings.
+        StopLocalWebserver();
+    }
+#endif
 
     private string getResolvedClientId()
     {
@@ -149,8 +159,11 @@ public class Web3Auth : MonoBehaviour
             if (this.web3AuthOptions.whiteLabel != null)
                 this.initParams["whiteLabel"] = JsonConvert.SerializeObject(this.web3AuthOptions.whiteLabel, settings);
 
-            if (this.web3AuthOptions.authConnectionConfig != null)
+            if (this.web3AuthOptions.authConnectionConfig != null && this.web3AuthOptions.authConnectionConfig.Count > 0)
                 this.initParams["authConnectionConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.authConnectionConfig, settings);
+
+            if (this.web3AuthOptions.walletServicesConfig != null)
+                this.initParams["walletServicesConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.walletServicesConfig, settings);
 
             if (this.web3AuthOptions.authBuildEnv != null)
                 this.initParams["authBuildEnv"] = this.web3AuthOptions.authBuildEnv.ToString().ToLower();
@@ -1097,7 +1110,7 @@ public class Web3Auth : MonoBehaviour
 
     				if (this.web3AuthOptions.walletServicesConfig != null)
     				{
-        				this.web3AuthOptions.walletServicesConfig.whiteLabel = 
+        				this.web3AuthOptions.walletServicesConfig.whiteLabel =
             				this.web3AuthOptions.walletServicesConfig.whiteLabel?.merge(whitelabel) ?? whitelabel;
     				}
 				}
@@ -1112,6 +1125,9 @@ public class Web3Auth : MonoBehaviour
 
                 if(this.web3AuthOptions.originData != null)
                     this.initParams["originData"] = JsonConvert.SerializeObject(this.web3AuthOptions.originData, settings);
+
+                if (this.web3AuthOptions.walletServicesConfig != null)
+                    this.initParams["walletServicesConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.walletServicesConfig, settings);
 
                 fetchProjectConfigResponse.SetResult(true);
             }
@@ -1147,8 +1163,18 @@ public class Web3Auth : MonoBehaviour
         return web3AuthResponse.userInfo;
     }
 
+    private void OnDisable()
+    {
+#if UNITY_STANDALONE || UNITY_EDITOR
+        StopLocalWebserver();
+#endif
+    }
+
     private void OnDestroy()
     {
+#if UNITY_EDITOR
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+#endif
 #if UNITY_STANDALONE || UNITY_EDITOR
         StopLocalWebserver();
 #endif

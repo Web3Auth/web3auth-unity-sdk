@@ -1,4 +1,6 @@
+using System.Runtime.Serialization;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace Plugins.Web3AuthSDK.Types
 {
@@ -7,45 +9,50 @@ namespace Plugins.Web3AuthSDK.Types
         public bool? enablePortfolioWidget { get; set; }
 
         public bool? enableConfirmationModal { get; set; }
-        
+
         public bool? enableWalletConnect { get; set; }
-        
+
         public bool? enableTokenDisplay { get; set; }
-        
+
         public bool? enableNftDisplay { get; set; }
-        
+
         public bool? enableShowAllTokensButton { get; set; }
-        
+
         public bool? enableBuyButton { get; set; }
-        
+
         public bool? enableSendButton { get; set; }
-        
+
         public bool? enableSwapButton { get; set; }
-        
+
         public bool? enableReceiveButton { get; set; }
-        
+
         public ButtonPositionType? portfolioWidgetPosition { get; set; }
-        
+
         public DefaultPortfolioType? defaultPortfolio { get; set; }
     }
 }
 
+[JsonConverter(typeof(StringEnumConverter))]
 public enum ButtonPositionType
 {
-    [JsonProperty("bottom-left")]
+    [EnumMember(Value = "bottom-left")]
     BOTTOM_LEFT,
 
-    [JsonProperty("top-left")]
+    [EnumMember(Value = "top-left")]
     TOP_LEFT,
 
-    [JsonProperty("bottom-right")]
+    [EnumMember(Value = "bottom-right")]
     BOTTOM_RIGHT,
 
-    [JsonProperty("top-right")]
+    [EnumMember(Value = "top-right")]
     TOP_RIGHT
 }
 
+[JsonConverter(typeof(StringEnumConverter))]
 public enum DefaultPortfolioType
 {
-    token , nft
+    [EnumMember(Value = "token")]
+    token,
+    [EnumMember(Value = "nft")]
+    nft
 }

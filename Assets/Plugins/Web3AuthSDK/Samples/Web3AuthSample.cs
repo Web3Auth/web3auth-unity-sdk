@@ -271,7 +271,7 @@ public class Web3AuthSample : MonoBehaviour
         {
             Debug.Log($"Chain ID: {config.chainId}, RPC Target: {config.rpcTarget}, Ticker: {config.ticker}, Namespace: {config.chainNamespace}");
         }
-        web3Auth.showWalletUI("0x1");
+        web3Auth.showWalletUI();
     }
 
     private void request() {

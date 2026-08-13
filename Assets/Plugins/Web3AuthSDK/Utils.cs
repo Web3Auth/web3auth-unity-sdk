@@ -91,7 +91,7 @@ public static class Utils
         return port;
     }
 
-
+    public const int LOCAL_REDIRECT_PORT = 3000;
     public const string LOCAL_REDIRECT_HOST = "localhost";
 
     public static string GetLocalRedirectBaseUrl(string host = null)
