@@ -9,4 +9,5 @@ public class LogoutApiRequest
     public string signature { get; set; }
     public long timeout { get; set; }
     public string allowedOrigin { get; set; } = "*";
+    public string sessionNamespace { get; set; } = "";
 }

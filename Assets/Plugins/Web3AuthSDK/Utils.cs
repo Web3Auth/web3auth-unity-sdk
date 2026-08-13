@@ -71,12 +71,15 @@ public static class Utils
 
         Dictionary<string, string> result = new Dictionary<string, string>();
 
-        if (parts.Count > 0)
+        foreach (var part in parts)
         {
-            result = parts.ToDictionary(
-                c => c.Split('=')[0],
-                c => Uri.UnescapeDataString(c.Split('=')[1])
-            );
+            int separator = part.IndexOf('=');
+            if (separator <= 0)
+                continue;
+
+            string key = Uri.UnescapeDataString(part.Substring(0, separator));
+            string value = Uri.UnescapeDataString(part.Substring(separator + 1));
+            result[key] = value;
         }
 
         return result;

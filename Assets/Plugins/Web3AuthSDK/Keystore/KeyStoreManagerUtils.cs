@@ -77,7 +77,8 @@ public class KeyStoreManagerUtils
             var key = new ECPrivateKeyParameters(new BigInteger(sessionId, 16), parameters);
             var q = new ECPublicKeyParameters("EC", domain.G.Multiply(key.D), parameters).Q;
 
-            return Hex.ToHexString(domain.Curve.CreatePoint(q.XCoord.ToBigInteger(), q.YCoord.ToBigInteger()).GetEncoded(false));
+            // Uncompressed secp256k1 pubkey (04 || X || Y)
+            return Hex.ToHexString(domain.Curve.CreatePoint(q.XCoord.ToBigInteger(), q.YCoord.ToBigInteger()).GetEncoded(false)).ToLowerInvariant();
         } catch (System.Exception ex)
         {
             UnityEngine.Debug.Log(ex);

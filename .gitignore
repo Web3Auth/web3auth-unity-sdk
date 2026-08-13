@@ -76,3 +76,6 @@ ios-build/*
 web3auth-android-build_*/
 TestBuild_BackUpThisFolder_ButDontShipItWithYourGame/*
 .DS_Store
+# TMP Essential Resources (imported locally; package is in Packages/manifest.json)
+/[Aa]ssets/[Tt]ext[Mm]esh [Pp]ro/
+/[Aa]ssets/[Tt]ext[Mm]esh [Pp]ro.meta

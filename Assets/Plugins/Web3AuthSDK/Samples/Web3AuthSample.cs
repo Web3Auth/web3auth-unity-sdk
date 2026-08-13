@@ -93,18 +93,10 @@ public class Web3AuthSample : MonoBehaviour
                 {"CUSTOM_VERIFIER", loginConfigItem}
             }
             */
-            authConnectionConfig = new List<AuthConnectionConfig>()
-            {
-                new AuthConnectionConfig()
-                {
-                    authConnectionId = "web3auth-auth0-email-passwordless-sapphire-devnet",
-                    authConnection = AuthConnection.CUSTOM,
-                    clientId = "d84f6xvbdV75VTGmHiMWfZLeSPk8M07C"
-                }
-            },
+            authConnectionConfig = null,
             clientId = "BPrPLO2tetqnI5UsOuuGK9SSmMGrRHi-y6LEtKp6PW5P1btBYqNkLFFtExK53PqOt-H9JszGhfQOq2FOGGNf-TE",
             authBuildEnv = BuildEnv.PRODUCTION,
-            redirectUrl = new Uri("torusapp://com.torus.Web3AuthUnity"),
+            redirectUrl = new Uri("torusapp://com.torus.Web3AuthUnity/auth"),
             localRedirectHost = "web3auth.localtest.me",
             web3AuthNetwork = Web3Auth.Network.SAPPHIRE_MAINNET,
             defaultChainId = "0x1",
