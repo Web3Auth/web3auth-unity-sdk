@@ -160,10 +160,10 @@ public class Web3Auth : MonoBehaviour
                 this.initParams["whiteLabel"] = JsonConvert.SerializeObject(this.web3AuthOptions.whiteLabel, settings);
 
             if (this.web3AuthOptions.authConnectionConfig != null && this.web3AuthOptions.authConnectionConfig.Count > 0)
-                this.initParams["authConnectionConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.authConnectionConfig, settings);
+                this.initParams["authConnectionConfig"] = this.web3AuthOptions.authConnectionConfig;
 
             if (this.web3AuthOptions.walletServicesConfig != null)
-                this.initParams["walletServicesConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.walletServicesConfig, settings);
+                this.initParams["walletServicesConfig"] = this.web3AuthOptions.walletServicesConfig;
 
             if (this.web3AuthOptions.authBuildEnv != null)
                 this.initParams["authBuildEnv"] = this.web3AuthOptions.authBuildEnv.ToString().ToLower();
@@ -1127,7 +1127,7 @@ public class Web3Auth : MonoBehaviour
                     this.initParams["originData"] = JsonConvert.SerializeObject(this.web3AuthOptions.originData, settings);
 
                 if (this.web3AuthOptions.walletServicesConfig != null)
-                    this.initParams["walletServicesConfig"] = JsonConvert.SerializeObject(this.web3AuthOptions.walletServicesConfig, settings);
+                    this.initParams["walletServicesConfig"] = this.web3AuthOptions.walletServicesConfig;
 
                 fetchProjectConfigResponse.SetResult(true);
             }
