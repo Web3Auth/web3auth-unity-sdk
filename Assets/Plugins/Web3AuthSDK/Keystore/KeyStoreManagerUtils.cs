@@ -30,17 +30,55 @@ public class KeyStoreManagerUtils
     public static string MAC = "mac";
     public static string REDIRECT_URL = "redirectUrl";
 
+    public static string normalizeSessionId(string sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return string.Empty;
+
+        sessionId = sessionId.Trim();
+        if (sessionId.StartsWith("0x", System.StringComparison.OrdinalIgnoreCase))
+            sessionId = sessionId.Substring(2);
+
+        return sessionId;
+    }
+
+    public static bool isValidSessionId(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId))
+            return false;
+
+        for (int i = 0; i < sessionId.Length; i++)
+        {
+            char c = sessionId[i];
+            bool isHex = (c >= '0' && c <= '9') ||
+                         (c >= 'a' && c <= 'f') ||
+                         (c >= 'A' && c <= 'F');
+            if (!isHex)
+                return false;
+        }
+
+        return true;
+    }
+
     public static string getPubKey(string sessionId)
     {
         try
         {
+            sessionId = normalizeSessionId(sessionId);
+            if (!isValidSessionId(sessionId))
+            {
+                UnityEngine.Debug.LogError($"getPubKey: sessionId is not valid hex (length={sessionId?.Length ?? 0}).");
+                return "";
+            }
+
             var domain = SecNamedCurves.GetByName("secp256k1");
             var parameters = new ECDomainParameters(domain.Curve, domain.G, domain.N);
 
             var key = new ECPrivateKeyParameters(new BigInteger(sessionId, 16), parameters);
             var q = new ECPublicKeyParameters("EC", domain.G.Multiply(key.D), parameters).Q;
 
-            return Hex.ToHexString(domain.Curve.CreatePoint(q.XCoord.ToBigInteger(), q.YCoord.ToBigInteger()).GetEncoded(false));
+            // Uncompressed secp256k1 pubkey (04 || X || Y)
+            return Hex.ToHexString(domain.Curve.CreatePoint(q.XCoord.ToBigInteger(), q.YCoord.ToBigInteger()).GetEncoded(false)).ToLowerInvariant();
         } catch (System.Exception ex)
         {
             UnityEngine.Debug.Log(ex);

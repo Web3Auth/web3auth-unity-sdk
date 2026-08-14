@@ -1,17 +1,22 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 public class ExtraLoginOptions {
     public Dictionary<string, string> additionalParams { get; set; }
     public string domain { get; set; }
     public string client_id { get; set; }
     public string leeway { get; set; }
-    public string verifierIdField { get; set; }
-    public bool isVerifierIdCaseSensitive { get; set; }
+    public string userIdField { get; set; }
+    public bool isUserIdCaseSensitive { get; set; }
     public Display display { get; set; }
     public Prompt prompt { get; set; }
     public string max_age { get; set; }
     public string ui_locales { get; set; }
     public string id_token { get; set; }
+    public string access_token { get; set; }
+    public EmailFlowType flow_type { get; set; } = EmailFlowType.link;
     public string id_token_hint { get; set; }
     public string login_hint { get; set; }
     public string acr_values { get; set; }
@@ -22,4 +27,13 @@ public class ExtraLoginOptions {
     public string response_type { get; set; }
     public string nonce { get; set; }
     public string redirect_uri { get; set; }
+}
+
+[JsonConverter(typeof(StringEnumConverter))]
+public enum EmailFlowType
+{
+    [EnumMember(Value = "link")]
+    link,
+    [EnumMember(Value = "code")]
+    code
 }

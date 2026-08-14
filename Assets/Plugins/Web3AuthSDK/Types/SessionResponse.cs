@@ -1,4 +1,7 @@
+using Newtonsoft.Json;
+
 public class SessionResponse
 {
-    public string sessionId;
+    [JsonProperty("sessionId")]
+    public string sessionId { get; set; }
 }

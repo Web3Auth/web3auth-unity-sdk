@@ -9,8 +9,12 @@
 		</intent>
 	</queries>
 	<application>
-		<activity android:name="com.unity3d.player.UnityPlayerActivity"
-			android:theme="@style/UnityThemeSelector">
+		<activity android:name="com.web3auth.unity.android.Web3AuthActivity"
+			android:theme="@style/UnityThemeSelector"
+			android:exported="true"
+			android:launchMode="singleTask"
+			android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale|layoutDirection|density"
+			android:hardwareAccelerated="true">
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />
@@ -19,9 +23,7 @@
 				<action android:name="android.intent.action.VIEW" />
 				<category android:name="android.intent.category.DEFAULT" />
 				<category android:name="android.intent.category.BROWSABLE" />
-				<data android:scheme="torusapp" android:host="com.torus.Web3AuthUnity"
-					android:pathPrefix="/auth"
-					android:pathPattern="/*" />
+				<data android:scheme="torusapp" android:host="com.torus.Web3AuthUnity" />
 			</intent-filter>
 			<meta-data android:name="unityplayer.UnityActivity" android:value="true" />
 		</activity>

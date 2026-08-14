@@ -71,12 +71,15 @@ public static class Utils
 
         Dictionary<string, string> result = new Dictionary<string, string>();
 
-        if (parts.Count > 0)
+        foreach (var part in parts)
         {
-            result = parts.ToDictionary(
-                c => c.Split('=')[0],
-                c => Uri.UnescapeDataString(c.Split('=')[1])
-            );
+            int separator = part.IndexOf('=');
+            if (separator <= 0)
+                continue;
+
+            string key = Uri.UnescapeDataString(part.Substring(0, separator));
+            string value = Uri.UnescapeDataString(part.Substring(separator + 1));
+            result[key] = value;
         }
 
         return result;
@@ -91,5 +94,12 @@ public static class Utils
         return port;
     }
 
+    public const int LOCAL_REDIRECT_PORT = 3000;
+    public const string LOCAL_REDIRECT_HOST = "localhost";
 
+    public static string GetLocalRedirectBaseUrl(string host = null)
+    {
+        var redirectHost = string.IsNullOrWhiteSpace(host) ? LOCAL_REDIRECT_HOST : host.Trim();
+        return $"http://{redirectHost}:{LOCAL_REDIRECT_PORT}";
+    }
 }
