@@ -41,7 +41,7 @@ Download [.unitypackage](https://github.com/Web3Auth/web3auth-unity-sdk/releases
 
 ## Auth v11
 
-This SDK talks to Auth **v11** and Wallet Services **v6**, matching the Android, iOS, and Flutter SDKs.
+This SDK talks to Auth **v11** and Wallet Services **v6**.
 
 - Production and staging auth URLs use `/v11`. `TESTING` stays unversioned (`https://develop-auth.web3auth.io`).
 - Wallet URLs use `/v6` (`https://wallet.web3auth.io/v6`). Wallet launch sends citadel `sessionId`, `accessToken`, `refreshToken`, and `idToken`.
