@@ -10,6 +10,8 @@ namespace Plugins.Web3AuthSDK.Types
 
         public SmartAccountWalletScope walletScope { get; set; }
 
+        public string eipStandard { get; set; }
+
         public List<ChainConfig> chains { get; set; }
     }
 

@@ -11,4 +11,5 @@ public class Web3AuthResponse
     public string sessionId { get; set; }
     public string coreKitKey { get; set; }
     public string coreKitEd25519PrivKey { get; set; }
+    public string factorKey { get; set; }
 }

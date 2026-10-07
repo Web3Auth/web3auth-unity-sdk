@@ -7,7 +7,10 @@ public class MfaSettings
     public MfaSetting? passkeysFactor { get; set; }
     public MfaSetting? authenticatorFactor { get; set; }
 
-    // Constructors
+    public MfaSettings()
+    {
+    }
+
     public MfaSettings(
         MfaSetting? deviceShareFactor,
         MfaSetting? backUpShareFactor,

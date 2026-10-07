@@ -85,14 +85,7 @@ public class Web3AuthSample : MonoBehaviour
                     { "primary", "#FFBF00" }
                 }
             },
-            // If using your own custom verifier, uncomment this code. 
-            /*
-            ,
-            loginConfig = new Dictionary<string, LoginConfigItem>
-            {
-                {"CUSTOM_VERIFIER", loginConfigItem}
-            }
-            */
+            // Custom verifiers: set authConnectionConfig instead of the removed loginConfig map.
             authConnectionConfig = null,
             clientId = "BPrPLO2tetqnI5UsOuuGK9SSmMGrRHi-y6LEtKp6PW5P1btBYqNkLFFtExK53PqOt-H9JszGhfQOq2FOGGNf-TE",
             authBuildEnv = BuildEnv.PRODUCTION,

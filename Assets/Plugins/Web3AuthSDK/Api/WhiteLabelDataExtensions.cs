@@ -18,6 +18,8 @@ public static class WhiteLabelDataExtensions
             defaultLanguage = target.defaultLanguage ?? other.defaultLanguage,
             mode = target.mode ?? other.mode,
             useLogoLoader = target.useLogoLoader ?? other.useLogoLoader,
+            tncLink = target.tncLink ?? other.tncLink,
+            privacyPolicy = target.privacyPolicy ?? other.privacyPolicy,
             theme = mergeThemes(target.theme, other.theme)
         };
     }
