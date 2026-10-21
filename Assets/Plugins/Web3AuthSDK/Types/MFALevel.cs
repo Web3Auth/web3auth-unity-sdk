@@ -5,8 +5,6 @@ using System.Runtime.Serialization;
 [JsonConverter(typeof(StringEnumConverter))]
 public enum MFALevel
 {
-    [EnumMember(Value = "default")]
-    DEFAULT,
     [EnumMember(Value = "optional")]
     OPTIONAL,
     [EnumMember(Value = "mandatory")]

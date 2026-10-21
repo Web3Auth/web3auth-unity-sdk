@@ -6,9 +6,11 @@ namespace Plugins.Web3AuthSDK.Types
 {
     public class WalletServicesConfig
     {
-        public ConfirmationStrategy? confirmationStrategy { get; set; } = ConfirmationStrategy.DEFAULT;
+        public ConfirmationStrategy? confirmationStrategy { get; set; }
 
         public WhiteLabelData? whiteLabel { get; set; }
+
+        public bool? enableKeyExport { get; set; }
     }
 }
 

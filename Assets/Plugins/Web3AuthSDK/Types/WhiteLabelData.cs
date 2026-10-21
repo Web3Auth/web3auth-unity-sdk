@@ -9,4 +9,6 @@ public class WhiteLabelData {
     public Dictionary<string, string>? theme { get; set; }
     public string? appUrl { get; set; }
     public bool? useLogoLoader { get; set; } = false;
+    public string? tncLink { get; set; }
+    public string? privacyPolicy { get; set; }
 }

@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Org.BouncyCastle.Math;
+using Plugins.Web3AuthSDK.Types;
 using UnityEngine;
 
 public class Web3Auth : MonoBehaviour
@@ -45,6 +46,11 @@ public class Web3Auth : MonoBehaviour
 
     private Web3AuthResponse web3AuthResponse;
     private ProjectConfigResponse projectConfigResponse;
+    private AuthSessionManager authSessionManager;
+    private LoginParams currentLoginParams;
+    private string currentActionType;
+    private float analyticsStartTime;
+    public const string LoginSource = "web3auth-unity";
     private bool isRequestResponse = false;
 
     public event Action<Web3AuthResponse> onLogin;
@@ -78,6 +84,7 @@ public class Web3Auth : MonoBehaviour
 
     public void Awake()
     {
+        analyticsStartTime = Time.realtimeSinceStartup;
         this.initParams = new Dictionary<string, object>();
 
         this.initParams["clientId"] = clientId;
@@ -137,15 +144,24 @@ public class Web3Auth : MonoBehaviour
 
         this.web3AuthOptions.clientId = resolvedClientId;
         this.initParams["clientId"] = resolvedClientId;
+        this.web3AuthOptions.EnsureServerUrls();
+        this.authSessionManager = new AuthSessionManager(this, this.web3AuthOptions.citadelServerUrl);
 
         bool isfetchConfigSuccess = await fetchProjectConfig();
 
         if (!isfetchConfigSuccess)
         {
+            AnalyticsManager.Track(this, AnalyticsEvents.SDK_INITIALIZATION_FAILED, new Dictionary<string, object>
+            {
+                { "integration_type", AnalyticsManager.IntegrationType },
+                { "login_source", LoginSource },
+                { "error_message", "Fetch project config API error" }
+            });
             throw new Exception(
                 "Failed to fetch project config. If responseCode was 0, the emulator/device has no working internet/DNS. " +
                 "Check Wi‑Fi, cold-boot the AVD, or try a physical device.");
         } else {
+            AnalyticsManager.Track(this, AnalyticsEvents.SDK_INITIALIZATION_COMPLETED, BuildInitializationAnalyticsProperties());
             // Restore existing session if present. Empty store is normal when logged out / expired.
             var redirectUrl = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.REDIRECT_URL);
             if (string.IsNullOrEmpty(redirectUrl) && this.web3AuthOptions.redirectUrl != null)
@@ -191,6 +207,14 @@ public class Web3Auth : MonoBehaviour
 
             if (this.web3AuthOptions.dashboardUrl != null)
                 this.initParams["dashboardUrl"] = this.web3AuthOptions.dashboardUrl;
+
+            this.initParams["citadelServerUrl"] = this.web3AuthOptions.citadelServerUrl;
+            this.initParams["storageServerUrl"] = this.web3AuthOptions.storageServerUrl;
+            this.initParams["sessionSocketUrl"] = this.web3AuthOptions.sessionSocketUrl;
+            if (!string.IsNullOrEmpty(this.web3AuthOptions.sessionNamespace))
+                this.initParams["sessionNamespace"] = this.web3AuthOptions.sessionNamespace;
+            if (this.web3AuthOptions.useAAWithExternalWallet.HasValue)
+                this.initParams["useAAWithExternalWallet"] = this.web3AuthOptions.useAAWithExternalWallet.Value;
         }
     }
 
@@ -432,12 +456,31 @@ public class Web3Auth : MonoBehaviour
 
     private async void processRequest(string path, LoginParams loginParams = null)
     {
+        currentActionType = path;
+        if (loginParams != null)
+            currentLoginParams = loginParams;
+
+        try
+        {
+            if (path == "enable_mfa" || path == "manage_mfa")
+                await refreshSession();
+
+            await LaunchAuthRequest(path, loginParams);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Web3Auth " + path + " failed: " + ex.Message);
+            TrackActionFailed(path, ex.Message);
+            throw;
+        }
+    }
+
+    private async Task LaunchAuthRequest(string path, LoginParams loginParams)
+    {
         redirectUrl = this.initParams["redirectUrl"].ToString();
         if (redirectUrl.EndsWith("/"))
-        {
             redirectUrl = redirectUrl.TrimEnd('/');
-        }
-        // Prefer casing from Web3AuthOptions when available.
+
         if (web3AuthOptions?.redirectUrl != null)
             redirectUrl = GetRedirectUrlString(web3AuthOptions.redirectUrl) ?? redirectUrl;
 
@@ -449,20 +492,41 @@ public class Web3Auth : MonoBehaviour
 #endif
 
         var sessionId = KeyStoreManagerUtils.generateRandomSessionKey();
-        if(path == "manage_mfa") {
-            loginParams.dappUrl = this.initParams["redirectUrl"].ToString();
-            this.initParams["redirectUrl"] = new Uri(this.initParams["dashboardUrl"].ToString());
-            var loginIdObject = new Dictionary<string, string>
+        var recordId = !string.IsNullOrEmpty(loginParams?.recordId) ? loginParams.recordId : Guid.NewGuid().ToString();
+        var loginSource = !string.IsNullOrEmpty(loginParams?.loginSource) ? loginParams.loginSource : LoginSource;
+
+        if (path == "enable_mfa" || path == "manage_mfa")
+        {
+            if (loginParams == null)
+                loginParams = new LoginParams();
+
+            var userInfo = web3AuthResponse?.userInfo;
+            if (userInfo != null)
             {
-                { "loginId", sessionId },
-                { "platform", "unity" },
-            };
-            string loginIdBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(loginIdObject, Formatting.None,
-                new JsonSerializerSettings
-                {
-                    NullValueHandling = NullValueHandling.Ignore
-                })));
-            loginParams.appState = loginIdBase64;
+                if (!string.IsNullOrEmpty(userInfo.authConnection) &&
+                Enum.TryParse(userInfo.authConnection, true, out AuthConnection parsedConnection))
+                loginParams.authConnection = parsedConnection;
+                loginParams.authConnectionId = userInfo.authConnectionId ?? loginParams.authConnectionId;
+                loginParams.groupedAuthConnectionId = userInfo.groupedAuthConnectionId ?? loginParams.groupedAuthConnectionId;
+            }
+
+            if (loginParams.extraLoginOptions == null)
+                loginParams.extraLoginOptions = new ExtraLoginOptions();
+            if (!string.IsNullOrEmpty(userInfo?.userId))
+                loginParams.extraLoginOptions.login_hint = userInfo.userId;
+
+            loginParams.mfaLevel = MFALevel.MANDATORY;
+
+            var appState = path == "manage_mfa"
+                ? new Dictionary<string, string> { { "loginId", sessionId }, { "recordId", recordId } }
+                : new Dictionary<string, string> { { "loginId", sessionId }, { "platform", "unity" } };
+            loginParams.appState = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(appState)));
+
+            if (path == "manage_mfa")
+            {
+                loginParams.dappUrl = this.initParams["redirectUrl"].ToString();
+                this.initParams["redirectUrl"] = new Uri(this.initParams["dashboardUrl"].ToString());
+            }
         }
 
         Dictionary<string, object> paramMap = new Dictionary<string, object>();
@@ -472,52 +536,75 @@ public class Web3Auth : MonoBehaviour
 
         if (path == "enable_mfa" || path == "manage_mfa")
         {
-            string savedSessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
-            paramMap["sessionId"] = savedSessionId;
+            var storedSessionId = authSessionManager?.GetSessionId();
+            if (string.IsNullOrEmpty(storedSessionId))
+                storedSessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
+            if (!string.IsNullOrEmpty(storedSessionId))
+                paramMap["sessionId"] = storedSessionId;
+
+            var accessToken = authSessionManager?.GetAccessToken();
+            if (!string.IsNullOrEmpty(accessToken))
+                paramMap["accessToken"] = accessToken;
         }
 
         string loginId = await createSession(JsonConvert.SerializeObject(paramMap, Formatting.None,
             new JsonSerializerSettings
             {
                 NullValueHandling = NullValueHandling.Ignore
-            }), 600, this.initParams["redirectUrl"].ToString(), sessionId);
+            }), SessionTimeoutSeconds(), this.initParams["redirectUrl"].ToString(), sessionId);
 
-        if (!string.IsNullOrEmpty(loginId))
-        {
-            var loginIdObject = new Dictionary<string, string>
-             {
-                  { "loginId", loginId }
-             };
-            string hash = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(loginIdObject, Formatting.None,
-                new JsonSerializerSettings
-                {
-                    NullValueHandling = NullValueHandling.Ignore
-                })));
-
-            UriBuilder uriBuilder = new UriBuilder(this.web3AuthOptions.sdkUrl);
-            if(this.web3AuthOptions.sdkUrl.Contains("develop"))
-            {
-                uriBuilder.Path = "/" + "start";
-            }
-            else
-            {
-                uriBuilder.Path += "/" + "start";
-            }
-            uriBuilder.Fragment = "b64Params=" + hash;
-            isRequestResponse = false;
-            Utils.LaunchUrl(uriBuilder.ToString(), this.initParams["redirectUrl"].ToString(), gameObject.name);
-        }
-        else
-        {
+        if (string.IsNullOrEmpty(loginId))
             throw new Exception("Some went wrong. Please try again later.");
-        }
+
+        var configParams = new Dictionary<string, string>
+        {
+            { "loginId", loginId },
+            { "recordId", recordId },
+            { "loginSource", loginSource }
+        };
+        var sessionNamespace = ResolveSessionNamespace();
+        if (!string.IsNullOrEmpty(sessionNamespace))
+            configParams["sessionNamespace"] = sessionNamespace;
+        if (!string.IsNullOrEmpty(web3AuthOptions?.storageServerUrl))
+            configParams["storageServerUrl"] = web3AuthOptions.storageServerUrl;
+
+        string hash = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(configParams, Formatting.None,
+            new JsonSerializerSettings
+            {
+                NullValueHandling = NullValueHandling.Ignore
+            })));
+
+        UriBuilder uriBuilder = new UriBuilder(this.web3AuthOptions.sdkUrl);
+        SetVersionedPath(uriBuilder, this.web3AuthOptions.sdkUrl, "start");
+        uriBuilder.Fragment = "b64Params=" + hash;
+        isRequestResponse = false;
+        Utils.LaunchUrl(uriBuilder.ToString(), this.initParams["redirectUrl"].ToString(), gameObject.name);
     }
 
     public async void showWalletUI(string path = "wallet")
     {
+            AnalyticsManager.Track(this, AnalyticsEvents.WALLET_UI_CLICKED, new Dictionary<string, object>
+            {
+                { "integration_type", AnalyticsManager.IntegrationType },
+                { "login_source", LoginSource }
+            });
             string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
             if (!string.IsNullOrEmpty(sessionId))
             {
+                try
+                {
+                    RequireWalletAccessToken();
+                }
+                catch (Exception ex)
+                {
+                    AnalyticsManager.Track(this, AnalyticsEvents.WALLET_SERVICES_FAILED, new Dictionary<string, object>
+                    {
+                        { "integration_type", AnalyticsManager.IntegrationType },
+                        { "login_source", LoginSource },
+                        { "error_message", ex.Message }
+                    });
+                    throw;
+                }
                 redirectUrl = this.initParams["redirectUrl"].ToString();
                 if (redirectUrl.EndsWith("/"))
                 {
@@ -561,7 +648,8 @@ public class Web3Auth : MonoBehaviour
                 if (projectConfigResponse?.smartAccounts != null)
                 {
                     this.initParams["smartAccounts"] = projectConfigResponse.smartAccounts;
-                } 
+                }
+                AppendWalletLaunchOptions();
                 Dictionary<string, object> paramMap = new Dictionary<string, object>();
                 paramMap["options"] = this.initParams;
 
@@ -571,16 +659,16 @@ public class Web3Auth : MonoBehaviour
                     new JsonSerializerSettings
                     {
                         NullValueHandling = NullValueHandling.Ignore
-                    }), 600, this.initParams["redirectUrl"].ToString(), newSessionId);
+                    }), SessionTimeoutSeconds(), this.initParams["redirectUrl"].ToString(), newSessionId);
 
                 if (!string.IsNullOrEmpty(loginId))
                 {
                     var loginIdObject = new Dictionary<string, string>
                     {
-                        { "loginId", loginId },
-                        { "sessionId", sessionId },
+                        { "loginId", KeyStoreManagerUtils.normalizeSessionId(loginId) },
                         { "platform", "unity" }
                     };
+                    AddWalletAuthCreds(loginIdObject, sessionId);
                     string hash = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(loginIdObject, Formatting.None,
                         new JsonSerializerSettings
                         {
@@ -588,14 +676,7 @@ public class Web3Auth : MonoBehaviour
                         })));
 
                     UriBuilder uriBuilder = new UriBuilder(this.web3AuthOptions.walletSdkUrl);
-                    if(this.web3AuthOptions.sdkUrl.Contains("develop"))
-                    {
-                        uriBuilder.Path = "/" + path;
-                    }
-                    else
-                    {
-                        uriBuilder.Path += "/" + path;
-                    }
+                    SetVersionedPath(uriBuilder, this.web3AuthOptions.walletSdkUrl, path);
                     uriBuilder.Fragment = "b64Params=" + hash;
                     //Debug.Log("finalUriBuilderToOpen: =>" + uriBuilder.ToString());
                     isRequestResponse = false;
@@ -664,10 +745,25 @@ public class Web3Auth : MonoBehaviour
 
         if (decodedString.Contains("actionType"))
         {
-            RedirectResponse response = JsonUtility.FromJson<RedirectResponse>(decodedString);
-            if (response.actionType == "manage_mfa")
+            RedirectResponse response = JsonConvert.DeserializeObject<RedirectResponse>(decodedString);
+            if (response != null && response.actionType == "manage_mfa")
             {
-                this.Enqueue(() => this.onManageMFA?.Invoke(true));
+                this.Enqueue(() =>
+                {
+                    if (!string.IsNullOrEmpty(response.sessionId))
+                    {
+                        EnsureAuthSessionManager();
+                        authSessionManager?.SetTokens(new AuthTokens
+                        {
+                            sessionId = response.sessionId,
+                            accessToken = response.accessToken,
+                            refreshToken = response.refreshToken,
+                            idToken = response.idToken
+                        });
+                    }
+                    this.onManageMFA?.Invoke(true);
+                });
+                TrackActionCompleted("manage_mfa");
                 return;
             }
         }
@@ -676,6 +772,10 @@ public class Web3Auth : MonoBehaviour
             {
                 signResponse = JsonUtility.FromJson<SignResponse>(decodedString);
                 this.Enqueue(() => this.onSignResponse?.Invoke(signResponse));
+                AnalyticsManager.Track(this, AnalyticsEvents.REQUEST_FUNCTION_COMPLETED, new Dictionary<string, object>
+                {
+                    { "login_source", LoginSource }
+                });
             }
             catch (Exception)
             {
@@ -744,7 +844,30 @@ public class Web3Auth : MonoBehaviour
 
         this.Enqueue(() =>
         {
-            KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.SESSION_ID, sessionId);
+            EnsureAuthSessionManager();
+            if (authSessionManager != null)
+            {
+                try
+                {
+                    authSessionManager.SetTokens(new AuthTokens
+                    {
+                        sessionId = sessionResponse.sessionId,
+                        accessToken = sessionResponse.accessToken,
+                        refreshToken = sessionResponse.refreshToken,
+                        idToken = sessionResponse.idToken
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError("Web3Auth failed to store citadel tokens: " + ex.Message);
+                    TrackActionFailed(currentActionType, ex.Message);
+                    return;
+                }
+            }
+            else
+            {
+                KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.SESSION_ID, sessionId);
+            }
             KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.REDIRECT_URL, resolvedRedirectUrl);
             authorizeSession(sessionId, resolvedRedirectUrl);
         });
@@ -799,6 +922,10 @@ public class Web3Auth : MonoBehaviour
 
     public void login(LoginParams loginParams)
     {
+        currentLoginParams = loginParams;
+        currentActionType = "login";
+        AnalyticsManager.Track(this, AnalyticsEvents.CONNECTION_STARTED, BuildConnectionAnalyticsProperties());
+
         if (web3AuthOptions.authConnectionConfig != null)
         {
             var authConnectionItem = web3AuthOptions.authConnectionConfig?.FirstOrDefault();
@@ -815,7 +942,12 @@ public class Web3Auth : MonoBehaviour
 
     public void logout(Dictionary<string, object> extraParams)
     {
-        sessionTimeOutAPI();
+        AnalyticsManager.Track(this, AnalyticsEvents.LOGOUT_STARTED, new Dictionary<string, object>
+        {
+            { "integration_type", AnalyticsManager.IntegrationType },
+            { "login_source", LoginSource }
+        });
+        StartCoroutine(LogoutRoutine());
     }
 
     public void logout(Uri redirectUrl = null, string appState = null)
@@ -832,6 +964,13 @@ public class Web3Auth : MonoBehaviour
 
     public void enableMFA(LoginParams loginParams)
     {
+        currentLoginParams = loginParams;
+        AnalyticsManager.Track(this, AnalyticsEvents.MFA_ENABLEMENT_STARTED, new Dictionary<string, object>
+        {
+            { "integration_type", AnalyticsManager.IntegrationType },
+            { "login_source", LoginSource },
+            { "connector", "auth" }
+        });
         if(web3AuthResponse.userInfo.isMfaEnabled == true)
         {
             throw new Exception("MFA is already enabled for this user.");
@@ -858,6 +997,17 @@ public class Web3Auth : MonoBehaviour
 
     public void manageMFA(LoginParams loginParams)
     {
+        currentLoginParams = loginParams;
+        AnalyticsManager.Track(this, AnalyticsEvents.MFA_MANAGEMENT_STARTED, new Dictionary<string, object>
+        {
+            { "integration_type", AnalyticsManager.IntegrationType },
+            { "login_source", LoginSource },
+            { "connector", "auth" }
+        });
+        AnalyticsManager.Track(this, AnalyticsEvents.MFA_MANAGEMENT_SELECTED, new Dictionary<string, object>
+        {
+            { "login_source", LoginSource }
+        });
         if(web3AuthResponse.userInfo.isMfaEnabled == false)
         {
             throw new Exception("MFA is not enabled. Please enable MFA first.");
@@ -883,9 +1033,27 @@ public class Web3Auth : MonoBehaviour
     }
 
     public async void request(string method, JArray requestParams, string path = "wallet/request") {
+        AnalyticsManager.Track(this, AnalyticsEvents.REQUEST_FUNCTION_STARTED, new Dictionary<string, object>
+        {
+            { "integration_type", AnalyticsManager.IntegrationType },
+            { "login_source", LoginSource }
+        });
         string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
         if (!string.IsNullOrEmpty(sessionId))
         {
+                    try
+                    {
+                        RequireWalletAccessToken();
+                    }
+                    catch (Exception ex)
+                    {
+                        AnalyticsManager.Track(this, AnalyticsEvents.REQUEST_FUNCTION_FAILED, new Dictionary<string, object>
+                        {
+                            { "error_message", ex.Message },
+                            { "login_source", LoginSource }
+                        });
+                        throw;
+                    }
                     redirectUrl = this.initParams["redirectUrl"].ToString();
                     if (redirectUrl.EndsWith("/"))
                     {
@@ -930,6 +1098,7 @@ public class Web3Auth : MonoBehaviour
                     {
                         this.initParams["smartAccounts"] = projectConfigResponse.smartAccounts;
                     }
+                    AppendWalletLaunchOptions();
                     Dictionary<string, object> paramMap = new Dictionary<string, object>();
                     paramMap["options"] = this.initParams;
 
@@ -944,7 +1113,7 @@ public class Web3Auth : MonoBehaviour
                         new JsonSerializerSettings
                         {
                             NullValueHandling = NullValueHandling.Ignore
-                        }), 600, this.initParams["redirectUrl"].ToString(), newSessionId);
+                        }), SessionTimeoutSeconds(), this.initParams["redirectUrl"].ToString(), newSessionId);
 
                     if (!string.IsNullOrEmpty(loginId))
                     {
@@ -955,11 +1124,11 @@ public class Web3Auth : MonoBehaviour
                         };
                         JObject signMessageMap = new JObject
                         {
-                            { "loginId", loginId },
-                            { "sessionId", sessionId },
-                            {"platform", "unity" },
+                            { "loginId", KeyStoreManagerUtils.normalizeSessionId(loginId) },
+                            { "platform", "unity" },
                             { "request", JsonConvert.SerializeObject(requestData) }
                         };
+                        AddWalletAuthCreds(signMessageMap, sessionId);
 
                         string hash = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(signMessageMap, Formatting.None,
                             new JsonSerializerSettings
@@ -968,14 +1137,7 @@ public class Web3Auth : MonoBehaviour
                             })));
 
                         UriBuilder uriBuilder = new UriBuilder(this.web3AuthOptions.walletSdkUrl);
-                        if(this.web3AuthOptions.sdkUrl.Contains("develop"))
-                        {
-                            uriBuilder.Path = "/" + path;
-                        }
-                        else
-                        {
-                            uriBuilder.Path += "/" + path;
-                        }
+                        SetVersionedPath(uriBuilder, this.web3AuthOptions.walletSdkUrl, path);
                         uriBuilder.Fragment = "b64Params=" + hash;
                         isRequestResponse = true;
                         Utils.LaunchUrl(uriBuilder.ToString(), this.initParams["redirectUrl"].ToString(), gameObject.name);
@@ -1029,6 +1191,33 @@ public class Web3Auth : MonoBehaviour
     }
 
     private void authorizeSession(string newSessionId, string origin, bool quietIfEmpty = false)
+    {
+        StartCoroutine(AuthorizeSessionRoutine(newSessionId, origin, quietIfEmpty));
+    }
+
+    private IEnumerator AuthorizeSessionRoutine(string newSessionId, string origin, bool quietIfEmpty)
+    {
+        EnsureAuthSessionManager();
+        if (authSessionManager != null)
+        {
+            var authorizeTask = authSessionManager.Authorize();
+            while (!authorizeTask.IsCompleted)
+                yield return null;
+
+            if (authorizeTask.Status == TaskStatus.RanToCompletion && !string.IsNullOrEmpty(authorizeTask.Result))
+            {
+                if (ApplyAuthorizedPayload(authorizeTask.Result, true))
+                    TrackActionCompleted(currentActionType);
+                else if (!quietIfEmpty)
+                    TrackActionFailed(currentActionType, "citadel authorize failed");
+                yield break;
+            }
+        }
+
+        AuthorizeViaSessionStore(newSessionId, origin, quietIfEmpty);
+    }
+
+    private void AuthorizeViaSessionStore(string newSessionId, string origin, bool quietIfEmpty = false)
     {
         string sessionId = "";
         if (string.IsNullOrEmpty(newSessionId))
@@ -1117,13 +1306,14 @@ public class Web3Auth : MonoBehaviour
                         bool hasCoreKitKey =
                             !string.IsNullOrEmpty(this.web3AuthResponse.coreKitKey) &&
                             !string.IsNullOrEmpty(this.web3AuthResponse.coreKitKey.Trim('0'));
+                        bool hasFactorKey = !string.IsNullOrEmpty(this.web3AuthResponse.factorKey);
                         bool hasUser =
                             this.web3AuthResponse.userInfo != null &&
                             (!string.IsNullOrEmpty(this.web3AuthResponse.userInfo.email) ||
                              !string.IsNullOrEmpty(this.web3AuthResponse.userInfo.name) ||
                              !string.IsNullOrEmpty(this.web3AuthResponse.userInfo.userId));
 
-                        if (!hasKey && !hasCoreKitKey && !hasUser)
+                        if (!hasKey && !hasCoreKitKey && !hasFactorKey && !hasUser)
                         {
                             Debug.LogError("Web3Auth authorizeSession: response had no private key/userInfo. Invoking onLogout. raw=" + tempJson);
                             this.Enqueue(() => this.onLogout?.Invoke());
@@ -1133,6 +1323,7 @@ public class Web3Auth : MonoBehaviour
                             Debug.Log("Web3Auth authorizeSession success, invoking onLogin");
                             this.Enqueue(() => this.onLogin?.Invoke(this.web3AuthResponse));
                             this.Enqueue(() => this.onMFASetup?.Invoke(true));
+                            TrackActionCompleted(currentActionType);
                         }
                     }
                     else
@@ -1158,7 +1349,7 @@ public class Web3Auth : MonoBehaviour
                     Debug.LogError("Web3Auth authorizeSession callback failed: " + ex);
                 }
 
-            }), quiet: quietIfEmpty));
+            }), quiet: quietIfEmpty, storageServerUrl: web3AuthOptions?.storageServerUrl));
         }
     }
 
@@ -1200,26 +1391,54 @@ public class Web3Auth : MonoBehaviour
         this.Enqueue(() => this.onLogout?.Invoke());
     }
 
-    private void sessionTimeOutAPI()
+    private IEnumerator LogoutRoutine()
     {
-        string sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
-        string redirectUrl = resolveSessionRedirectUrl();
+        var sessionId = KeyStoreManagerUtils.getPreferencesData(KeyStoreManagerUtils.SESSION_ID);
+        var redirectUrl = resolveSessionRedirectUrl();
+        EnsureAuthSessionManager();
 
-        if (string.IsNullOrEmpty(sessionId))
+        if (authSessionManager != null)
         {
-            clearLocalSessionAndNotifyLogout();
-            return;
+            Task logoutTask = null;
+            try
+            {
+                logoutTask = authSessionManager.Logout();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("Web3Auth citadel logout failed to start: " + ex.Message);
+            }
+
+            if (logoutTask != null)
+            {
+                while (!logoutTask.IsCompleted)
+                    yield return null;
+            }
         }
+
+        if (!string.IsNullOrEmpty(sessionId))
+            StartCoroutine(InvalidateStoredSession(sessionId, redirectUrl));
+
+        clearLocalSessionAndNotifyLogout();
+        AnalyticsManager.Track(this, AnalyticsEvents.LOGOUT_COMPLETED, new Dictionary<string, object>
+        {
+            { "integration_type", AnalyticsManager.IntegrationType },
+            { "login_source", LoginSource }
+        });
+        AnalyticsManager.Reset();
+    }
+
+    private IEnumerator InvalidateStoredSession(string sessionId, string redirectUrl)
+    {
+        if (string.IsNullOrEmpty(sessionId))
+            yield break;
 
         sessionId = KeyStoreManagerUtils.normalizeSessionId(sessionId);
         var pubKey = KeyStoreManagerUtils.getPubKey(sessionId);
         if (string.IsNullOrEmpty(pubKey))
-        {
-            clearLocalSessionAndNotifyLogout();
-            return;
-        }
+            yield break;
 
-        StartCoroutine(Web3AuthApi.getInstance().authorizeSession(pubKey, redirectUrl, (response =>
+        yield return Web3AuthApi.getInstance().authorizeSession(pubKey, redirectUrl, (response =>
         {
             if (response != null && !string.IsNullOrEmpty(response.message))
             {
@@ -1257,11 +1476,10 @@ public class Web3Auth : MonoBehaviour
                                     sessionId,
                                     jsonData
                                 ),
-                                timeout = 1
-                            }, result =>
-                            {
-                                clearLocalSessionAndNotifyLogout();
-                            }
+                                timeout = 1,
+                                sessionNamespace = ResolveSessionNamespace()
+                            }, _ => { },
+                            web3AuthOptions?.storageServerUrl
                         ));
                         return;
                     }
@@ -1271,9 +1489,7 @@ public class Web3Auth : MonoBehaviour
                     }
                 }
             }
-
-            clearLocalSessionAndNotifyLogout();
-        }), quiet: true));
+        }), quiet: true, storageServerUrl: web3AuthOptions?.storageServerUrl);
     }
 
     private async Task<string> createSession(string data, long sessionTime, string allowedOrigin, string sessionId)
@@ -1308,7 +1524,8 @@ public class Web3Auth : MonoBehaviour
                     jsonData
                 ),
                 timeout = Math.Min(sessionTime, 30 * 86400),
-                allowedOrigin = allowedOrigin
+                allowedOrigin = allowedOrigin,
+                sessionNamespace = ResolveSessionNamespace() ?? ""
             }, result =>
             {
                 if (result != null)
@@ -1326,7 +1543,8 @@ public class Web3Auth : MonoBehaviour
                 {
                     createSessionResponse.SetException(new Exception("Something went wrong. Please try again later."));
                 }
-            }
+            },
+            web3AuthOptions?.storageServerUrl
         ));
         return await createSessionResponse.Task;
     }
@@ -1357,6 +1575,17 @@ public class Web3Auth : MonoBehaviour
             projectConfigResponse = response;
             if (response != null)
             {
+                ApplyProjectConfigHydration(response);
+                AnalyticsManager.SetGlobalProperties(new Dictionary<string, object>
+                {
+                    { "sdk_name", "unity" },
+                    { "sdk_version", AnalyticsManager.SdkVersion },
+                    { "web3auth_client_id", getResolvedClientId() },
+                    { "web3auth_network", this.web3AuthOptions.web3AuthNetwork.ToString().ToLowerInvariant() },
+                    { "team_id", response.teamId?.ToString() },
+                    { "integration_type", AnalyticsManager.IntegrationType },
+                    { "login_source", LoginSource }
+                });
                 this.web3AuthOptions.originData = this.web3AuthOptions.originData.mergeMaps(response.whitelist?.signed_urls);
                 if (response?.whitelabel != null)
 				{
@@ -1398,8 +1627,477 @@ public class Web3Auth : MonoBehaviour
             {
                 fetchProjectConfigResponse.SetResult(false);
             }
-        })));
+        }), Web3AuthOptions.DashboardPublicApiUrl(this.web3AuthOptions.authBuildEnv), ResolveAaProvider()));
         return await fetchProjectConfigResponse.Task;
+    }
+
+    private void EnsureAuthSessionManager()
+    {
+        if (authSessionManager != null || web3AuthOptions == null)
+            return;
+        web3AuthOptions.EnsureServerUrls();
+        authSessionManager = new AuthSessionManager(this, web3AuthOptions.citadelServerUrl);
+    }
+
+    private long SessionTimeoutSeconds()
+    {
+        if (web3AuthOptions == null)
+            return 600;
+        return web3AuthOptions.ResolvedSessionTime;
+    }
+
+    private string ResolveSessionNamespace()
+    {
+        if (!string.IsNullOrEmpty(web3AuthOptions?.sessionNamespace))
+            return web3AuthOptions.sessionNamespace;
+        if (web3AuthOptions?.useSFAKey == true)
+            return "sfa";
+        return null;
+    }
+
+    private string ResolveAaProvider()
+    {
+        var raw = web3AuthOptions?.accountAbstractionConfig;
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+        try
+        {
+            var json = JObject.Parse(raw);
+            foreach (var key in new[] { "smartAccountType", "smart_account_type", "aaProvider", "aa_provider" })
+            {
+                var value = json[key]?.ToString();
+                if (!string.IsNullOrEmpty(value))
+                    return value.ToLowerInvariant();
+            }
+        }
+        catch (Exception)
+        {
+            /* accountAbstractionConfig is not a JSON object */
+        }
+        return null;
+    }
+
+    private static void SetVersionedPath(UriBuilder uriBuilder, string baseUrl, string path)
+    {
+        if (!string.IsNullOrEmpty(baseUrl) && baseUrl.Contains("develop"))
+            uriBuilder.Path = "/" + path;
+        else
+            uriBuilder.Path += "/" + path;
+    }
+
+    private void RequireWalletAccessToken()
+    {
+        if (web3AuthOptions?.useSFAKey == true)
+            return;
+        if (string.IsNullOrEmpty(authSessionManager?.GetAccessToken()))
+            throw new Exception("Missing accessToken for wallet services. Please login again.");
+    }
+
+    private void AddWalletAuthCreds(IDictionary<string, string> target, string sessionId)
+    {
+        target["sessionId"] = KeyStoreManagerUtils.normalizeSessionId(sessionId);
+        var accessToken = authSessionManager?.GetAccessToken();
+        var idToken = authSessionManager?.GetIdToken();
+        var refreshToken = authSessionManager?.GetRefreshToken();
+        if (!string.IsNullOrEmpty(accessToken))
+            target["accessToken"] = accessToken;
+        if (!string.IsNullOrEmpty(idToken))
+            target["idToken"] = idToken;
+        if (!string.IsNullOrEmpty(refreshToken))
+            target["refreshToken"] = refreshToken;
+        if (web3AuthOptions?.useSFAKey == true)
+            target["sessionNamespace"] = "sfa";
+    }
+
+    private void AddWalletAuthCreds(JObject target, string sessionId)
+    {
+        target["sessionId"] = KeyStoreManagerUtils.normalizeSessionId(sessionId);
+        var accessToken = authSessionManager?.GetAccessToken();
+        var idToken = authSessionManager?.GetIdToken();
+        var refreshToken = authSessionManager?.GetRefreshToken();
+        if (!string.IsNullOrEmpty(accessToken))
+            target["accessToken"] = accessToken;
+        if (!string.IsNullOrEmpty(idToken))
+            target["idToken"] = idToken;
+        if (!string.IsNullOrEmpty(refreshToken))
+            target["refreshToken"] = refreshToken;
+        if (web3AuthOptions?.useSFAKey == true)
+            target["sessionNamespace"] = "sfa";
+    }
+
+    private void AppendWalletLaunchOptions()
+    {
+        var settings = new JsonSerializerSettings
+        {
+            Converters = new List<JsonConverter> { new StringEnumConverter() },
+            NullValueHandling = NullValueHandling.Ignore
+        };
+        var serializer = JsonSerializer.Create(settings);
+
+        if (web3AuthOptions?.walletServicesConfig != null)
+            this.initParams["walletServicesConfig"] = JObject.FromObject(web3AuthOptions.walletServicesConfig, serializer);
+        if (projectConfigResponse?.smartAccounts != null)
+            this.initParams["accountAbstractionConfig"] = JObject.FromObject(projectConfigResponse.smartAccounts, serializer);
+        if (!string.IsNullOrEmpty(projectConfigResponse?.walletConnectProjectId))
+            this.initParams["walletConnectProjectId"] = projectConfigResponse.walletConnectProjectId;
+        if (projectConfigResponse?.embeddedWalletAuth != null)
+            this.initParams["embeddedWalletAuth"] = projectConfigResponse.embeddedWalletAuth;
+    }
+
+    private bool ApplyAuthorizedPayload(string json, bool notifyLogin)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(json))
+                return false;
+
+            var tempJson = JsonConvert.DeserializeObject<JObject>(json);
+            if (tempJson == null)
+                return false;
+
+            this.web3AuthResponse = JsonConvert.DeserializeObject<Web3AuthResponse>(tempJson.ToString());
+            if (this.web3AuthResponse == null)
+                return false;
+
+            if (!string.IsNullOrEmpty(this.web3AuthResponse.error))
+                throw new UnKnownException(this.web3AuthResponse.error);
+
+            if (!string.IsNullOrEmpty(this.web3AuthResponse.sessionId))
+            {
+                var responseSessionId = KeyStoreManagerUtils.normalizeSessionId(this.web3AuthResponse.sessionId);
+                if (KeyStoreManagerUtils.isValidSessionId(responseSessionId))
+                    KeyStoreManagerUtils.savePreferenceData(KeyStoreManagerUtils.SESSION_ID, responseSessionId);
+            }
+
+            if (web3AuthResponse.userInfo != null &&
+                !string.IsNullOrEmpty(web3AuthResponse.userInfo.dappShare) &&
+                !string.IsNullOrEmpty(web3AuthResponse.userInfo.authConnectionId))
+            {
+                KeyStoreManagerUtils.savePreferenceData(
+                    web3AuthResponse.userInfo.authConnectionId,
+                    web3AuthResponse.userInfo.dappShare);
+            }
+
+            var idToken = authSessionManager?.GetIdToken();
+            if (web3AuthResponse.userInfo != null && string.IsNullOrEmpty(web3AuthResponse.userInfo.idToken) && !string.IsNullOrEmpty(idToken))
+                web3AuthResponse.userInfo.idToken = idToken;
+
+            bool hasKey = !string.IsNullOrEmpty(this.web3AuthResponse.privateKey) &&
+                          !string.IsNullOrEmpty(this.web3AuthResponse.privateKey.Trim('0'));
+            bool hasCoreKitKey = !string.IsNullOrEmpty(this.web3AuthResponse.coreKitKey) &&
+                                 !string.IsNullOrEmpty(this.web3AuthResponse.coreKitKey.Trim('0'));
+            bool hasFactorKey = !string.IsNullOrEmpty(this.web3AuthResponse.factorKey);
+            bool hasUser = this.web3AuthResponse.userInfo != null &&
+                           (!string.IsNullOrEmpty(this.web3AuthResponse.userInfo.email) ||
+                            !string.IsNullOrEmpty(this.web3AuthResponse.userInfo.name) ||
+                            !string.IsNullOrEmpty(this.web3AuthResponse.userInfo.userId));
+
+            if (!hasKey && !hasCoreKitKey && !hasFactorKey && !hasUser)
+            {
+                Debug.LogError("Web3Auth authorizeSession: response had no private key/userInfo.");
+                if (notifyLogin)
+                    this.Enqueue(() => this.onLogout?.Invoke());
+                return false;
+            }
+
+            if (notifyLogin)
+            {
+                Debug.Log("Web3Auth citadel authorize success, invoking onLogin");
+                this.Enqueue(() => this.onLogin?.Invoke(this.web3AuthResponse));
+                this.Enqueue(() => this.onMFASetup?.Invoke(true));
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError("Web3Auth authorize payload failed: " + ex.Message);
+            return false;
+        }
+    }
+
+    private void ApplyProjectConfigHydration(ProjectConfigResponse response)
+    {
+        if (response == null || web3AuthOptions == null)
+            return;
+
+        if (!web3AuthOptions.sessionTime.HasValue || web3AuthOptions.sessionTime.Value <= 0)
+        {
+            web3AuthOptions.sessionTime = response.sessionTime.HasValue && response.sessionTime.Value > 0
+                ? response.sessionTime.Value
+                : Web3AuthOptions.DefaultSessionTime;
+        }
+
+        if (response.smartAccounts != null)
+        {
+            if (!web3AuthOptions.useAAWithExternalWallet.HasValue)
+            {
+                web3AuthOptions.useAAWithExternalWallet =
+                    response.smartAccounts.walletScope == SmartAccountWalletScope.all;
+            }
+            if (string.IsNullOrWhiteSpace(web3AuthOptions.accountAbstractionConfig))
+            {
+                web3AuthOptions.accountAbstractionConfig = JsonConvert.SerializeObject(
+                    response.smartAccounts,
+                    new JsonSerializerSettings
+                    {
+                        Converters = new List<JsonConverter> { new StringEnumConverter() },
+                        NullValueHandling = NullValueHandling.Ignore
+                    });
+            }
+        }
+
+        if (web3AuthOptions.chains == null && response.chains != null && response.chains.Count > 0)
+            web3AuthOptions.chains = response.chains[0];
+
+        if (web3AuthOptions.mfaSettings == null && response.mfaSettings != null)
+            web3AuthOptions.mfaSettings = response.mfaSettings;
+
+        MergeWalletServicesFromProjectConfig(response);
+    }
+
+    private void MergeWalletServicesFromProjectConfig(ProjectConfigResponse response)
+    {
+        var walletUi = response?.walletUiConfig;
+        if (walletUi == null || web3AuthOptions == null)
+            return;
+
+        var existing = web3AuthOptions.walletServicesConfig;
+        var theme = new Dictionary<string, string>();
+
+        void PutInverted(string key, bool? enabled)
+        {
+            if (!enabled.HasValue)
+                return;
+            theme[key] = (!enabled.Value).ToString().ToLowerInvariant();
+        }
+
+        PutInverted("hideTokenDisplay", walletUi.enableTokenDisplay);
+        PutInverted("hideNftDisplay", walletUi.enableNftDisplay);
+        PutInverted("hideTransfers", walletUi.enableSendButton);
+        PutInverted("hideTopup", walletUi.enableBuyButton);
+        PutInverted("hideReceive", walletUi.enableReceiveButton);
+        PutInverted("hideSwap", walletUi.enableSwapButton);
+        PutInverted("hideShowAllTokens", walletUi.enableShowAllTokensButton);
+        PutInverted("hideWalletConnect", walletUi.enableWalletConnect);
+        PutInverted("hideDefiPositionsDisplay", walletUi.enableDefiPositionsDisplay);
+        if (walletUi.enablePortfolioWidget.HasValue)
+            theme["showWidgetButton"] = walletUi.enablePortfolioWidget.Value.ToString().ToLowerInvariant();
+        if (walletUi.portfolioWidgetPosition.HasValue)
+            theme["buttonPosition"] = WalletEnumWire(walletUi.portfolioWidgetPosition.Value);
+        if (walletUi.defaultPortfolio.HasValue)
+            theme["defaultPortfolio"] = WalletEnumWire(walletUi.defaultPortfolio.Value);
+
+        var confirmation = walletUi.enableConfirmationModal switch
+        {
+            true => ConfirmationStrategy.MODAL,
+            false => ConfirmationStrategy.AUTO_APPROVE,
+            _ => existing?.confirmationStrategy ?? ConfirmationStrategy.DEFAULT
+        };
+
+        var dashboardWhiteLabel = new WhiteLabelData { theme = theme };
+        WhiteLabelData mergedWhiteLabel;
+        if (existing?.whiteLabel != null)
+            mergedWhiteLabel = existing.whiteLabel.merge(dashboardWhiteLabel);
+        else if (web3AuthOptions.whiteLabel != null)
+            mergedWhiteLabel = web3AuthOptions.whiteLabel.merge(dashboardWhiteLabel);
+        else
+            mergedWhiteLabel = dashboardWhiteLabel;
+
+        web3AuthOptions.walletServicesConfig = new WalletServicesConfig
+        {
+            confirmationStrategy = existing?.confirmationStrategy ?? confirmation,
+            whiteLabel = mergedWhiteLabel,
+            enableKeyExport = existing?.enableKeyExport ?? response.enableKeyExport
+        };
+    }
+
+    private static string WalletEnumWire(Enum value)
+    {
+        if (value == null)
+            return null;
+        var member = value.GetType().GetField(value.ToString());
+        if (member != null)
+        {
+            var attributes = member.GetCustomAttributes(typeof(System.Runtime.Serialization.EnumMemberAttribute), false);
+            if (attributes.Length > 0)
+            {
+                var named = ((System.Runtime.Serialization.EnumMemberAttribute)attributes[0]).Value;
+                if (!string.IsNullOrEmpty(named))
+                    return named;
+            }
+        }
+        return value.ToString().ToLowerInvariant();
+    }
+
+    private Dictionary<string, object> BuildConnectionAnalyticsProperties()
+    {
+        return new Dictionary<string, object>
+        {
+            { "connector", "auth" },
+            { "auth_connection", currentLoginParams?.authConnection.ToString() },
+            { "auth_connection_id", currentLoginParams?.authConnectionId },
+            { "group_auth_connection_id", currentLoginParams?.groupedAuthConnectionId },
+            { "chain_id", web3AuthOptions?.defaultChainId },
+            { "dapp_url", currentLoginParams?.dappUrl },
+            { "integration_type", AnalyticsManager.IntegrationType },
+            { "login_source", LoginSource }
+        };
+    }
+
+    private Dictionary<string, object> BuildInitializationAnalyticsProperties()
+    {
+        var projectChains = projectConfigResponse?.chains;
+        var optionChain = web3AuthOptions?.chains;
+        var chainIds = projectChains != null && projectChains.Count > 0
+            ? (object)projectChains.ConvertAll(chain => chain.chainId)
+            : optionChain?.chainId;
+        var defaultChainId = web3AuthOptions?.defaultChainId
+            ?? projectChains?.FirstOrDefault()?.chainId
+            ?? optionChain?.chainId
+            ?? "0x1";
+        var whiteLabel = web3AuthOptions?.whiteLabel;
+        var walletServices = web3AuthOptions?.walletServicesConfig;
+        var smartAccounts = projectConfigResponse?.smartAccounts;
+        string hideDefi = null;
+        string showWidget = null;
+        string defaultPortfolio = null;
+        if (walletServices?.whiteLabel?.theme != null)
+        {
+            walletServices.whiteLabel.theme.TryGetValue("hideDefiPositionsDisplay", out hideDefi);
+            walletServices.whiteLabel.theme.TryGetValue("showWidgetButton", out showWidget);
+            walletServices.whiteLabel.theme.TryGetValue("defaultPortfolio", out defaultPortfolio);
+        }
+
+        return new Dictionary<string, object>
+        {
+            { "chain_ids", chainIds },
+            { "chain_names", projectChains?.ConvertAll(chain => chain.displayName) },
+            { "chain_rpc_targets", projectChains?.ConvertAll(chain => chain.rpcTarget) },
+            { "default_chain_id", defaultChainId },
+            { "session_time", web3AuthOptions?.ResolvedSessionTime },
+            { "sfa_key_enabled", web3AuthOptions?.useSFAKey == true },
+            { "logging_enabled", web3AuthOptions?.enableLogging == true },
+            { "auth_build_env", web3AuthOptions?.authBuildEnv.ToString() },
+            { "whitelabel_tnc_link_enabled", !string.IsNullOrEmpty(whiteLabel?.tncLink) },
+            { "whitelabel_privacy_policy_enabled", !string.IsNullOrEmpty(whiteLabel?.privacyPolicy) },
+            { "whitelabel_app_name", whiteLabel?.appName },
+            { "aa_smart_account_type", smartAccounts?.smartAccountType.ToString() },
+            { "aa_eip_standard", smartAccounts?.eipStandard },
+            { "aa_wallet_scope", smartAccounts?.walletScope.ToString() },
+            { "aa_use_with_external_wallet", web3AuthOptions?.useAAWithExternalWallet },
+            { "aa_paymaster_enabled", smartAccounts?.chains?.Exists(chain => chain.paymasterConfig != null) == true },
+            { "ws_confirmation_strategy", walletServices?.confirmationStrategy?.ToString() },
+            { "ws_enable_key_export", walletServices?.enableKeyExport },
+            { "ws_show_widget_button", showWidget },
+            { "ws_hide_defi_positions_display", hideDefi },
+            { "ws_default_portfolio", defaultPortfolio },
+            { "integration_type", AnalyticsManager.IntegrationType },
+            { "login_source", LoginSource },
+            { "duration", (Time.realtimeSinceStartup - analyticsStartTime) * 1000f }
+        };
+    }
+
+    private void TrackActionCompleted(string actionType)
+    {
+        if (string.IsNullOrEmpty(actionType))
+            return;
+        string eventName = actionType switch
+        {
+            "login" => AnalyticsEvents.CONNECTION_COMPLETED,
+            "enable_mfa" => AnalyticsEvents.MFA_ENABLEMENT_COMPLETED,
+            "manage_mfa" => AnalyticsEvents.MFA_MANAGEMENT_COMPLETED,
+            _ => null
+        };
+        if (eventName == null)
+            return;
+        var properties = BuildConnectionAnalyticsProperties();
+        properties["duration"] = (Time.realtimeSinceStartup - analyticsStartTime) * 1000f;
+        AnalyticsManager.Track(this, eventName, properties);
+    }
+
+    private void TrackActionFailed(string actionType, string errorMessage)
+    {
+        if (string.IsNullOrEmpty(actionType))
+            return;
+        string eventName = actionType switch
+        {
+            "login" => AnalyticsEvents.CONNECTION_FAILED,
+            "enable_mfa" => AnalyticsEvents.MFA_ENABLEMENT_FAILED,
+            "manage_mfa" => AnalyticsEvents.MFA_MANAGEMENT_FAILED,
+            _ => null
+        };
+        if (eventName == null)
+            return;
+        var properties = BuildConnectionAnalyticsProperties();
+        properties["error_message"] = errorMessage;
+        properties["duration"] = (Time.realtimeSinceStartup - analyticsStartTime) * 1000f;
+        AnalyticsManager.Track(this, eventName, properties);
+    }
+
+    public async Task<Web3AuthResponse> refreshSession()
+    {
+        EnsureAuthSessionManager();
+        if (authSessionManager == null)
+            throw new Exception(Web3AuthError.getError(ErrorCode.NOUSERFOUND));
+
+        if (string.IsNullOrEmpty(authSessionManager.GetAccessToken()) &&
+            string.IsNullOrEmpty(authSessionManager.GetRefreshToken()))
+        {
+            if (web3AuthResponse != null)
+                return web3AuthResponse;
+            throw new Exception(Web3AuthError.getError(ErrorCode.NOUSERFOUND));
+        }
+
+        var payload = await authSessionManager.Authorize();
+        if (string.IsNullOrEmpty(payload) || !ApplyAuthorizedPayload(payload, false))
+        {
+            try
+            {
+                await authSessionManager.Logout();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("Web3Auth refreshSession cleanup failed: " + ex.Message);
+            }
+            clearLocalSessionAndNotifyLogout();
+            throw new Exception(Web3AuthError.getError(ErrorCode.NOUSERFOUND));
+        }
+
+        return web3AuthResponse;
+    }
+
+    public Task<string> getAccessToken()
+    {
+        EnsureAuthSessionManager();
+        var token = authSessionManager?.GetAccessToken();
+        if (string.IsNullOrEmpty(token))
+            return Task.FromException<string>(new Exception(Web3AuthError.getError(ErrorCode.NOUSERFOUND)));
+        return Task.FromResult(token);
+    }
+
+    public Task<string> getIdentityToken()
+    {
+        AnalyticsManager.Track(this, AnalyticsEvents.IDENTITY_TOKEN_STARTED, new Dictionary<string, object>
+        {
+            { "login_source", LoginSource }
+        });
+        EnsureAuthSessionManager();
+        var token = authSessionManager?.GetIdToken();
+        if (string.IsNullOrEmpty(token))
+        {
+            AnalyticsManager.Track(this, AnalyticsEvents.IDENTITY_TOKEN_FAILED, new Dictionary<string, object>
+            {
+                { "error_message", "missing idToken" },
+                { "login_source", LoginSource }
+            });
+            return Task.FromException<string>(new Exception(Web3AuthError.getError(ErrorCode.NOUSERFOUND)));
+        }
+
+        AnalyticsManager.Track(this, AnalyticsEvents.IDENTITY_TOKEN_COMPLETED, new Dictionary<string, object>
+        {
+            { "login_source", LoginSource }
+        });
+        return Task.FromResult(token);
     }
 
     public string getPrivateKey()
@@ -1422,6 +2120,13 @@ public class Web3Auth : MonoBehaviour
     {
         if (web3AuthResponse == null)
             throw new Exception(Web3AuthError.getError(ErrorCode.NOUSERFOUND));
+
+        if (web3AuthResponse.userInfo != null && string.IsNullOrEmpty(web3AuthResponse.userInfo.idToken))
+        {
+            var idToken = authSessionManager?.GetIdToken();
+            if (!string.IsNullOrEmpty(idToken))
+                web3AuthResponse.userInfo.idToken = idToken;
+        }
 
         return web3AuthResponse.userInfo;
     }

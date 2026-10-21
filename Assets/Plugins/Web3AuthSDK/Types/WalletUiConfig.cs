@@ -26,6 +26,8 @@ namespace Plugins.Web3AuthSDK.Types
 
         public bool? enableReceiveButton { get; set; }
 
+        public bool? enableDefiPositionsDisplay { get; set; }
+
         public ButtonPositionType? portfolioWidgetPosition { get; set; }
 
         public DefaultPortfolioType? defaultPortfolio { get; set; }
@@ -54,5 +56,7 @@ public enum DefaultPortfolioType
     [EnumMember(Value = "token")]
     token,
     [EnumMember(Value = "nft")]
-    nft
+    nft,
+    [EnumMember(Value = "defi")]
+    defi
 }

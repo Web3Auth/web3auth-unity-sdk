@@ -93,12 +93,13 @@ public class Web3AuthApi
         return request;
     }
 
-    public IEnumerator authorizeSession(string key, string redirectUrl, Action<StoreApiResponse> callback, bool quiet = false)
+    public IEnumerator authorizeSession(string key, string redirectUrl, Action<StoreApiResponse> callback, bool quiet = false, string storageServerUrl = null)
     {
         var originsToTry = buildOriginsToTry(redirectUrl);
         var keyNormalized = (key ?? "").ToLowerInvariant();
         StoreApiResponse finalResponse = null;
         int maxAttempts = quiet ? 1 : 3;
+        var hosts = ResolveStoreHosts(storageServerUrl);
 
         if (!quiet)
             Debug.Log($"Web3Auth authorizeSession origins=[{string.Join(", ", originsToTry)}] keyLength={keyNormalized.Length}");
@@ -108,7 +109,7 @@ public class Web3AuthApi
             if (attempt > 0)
                 yield return new WaitForSecondsRealtime(Mathf.Min(1f * attempt, 3f));
 
-            foreach (var host in sessionHosts)
+            foreach (var host in hosts)
             {
                 if (finalResponse != null)
                     break;
@@ -171,9 +172,9 @@ public class Web3AuthApi
         callback(finalResponse);
     }
 
-    public IEnumerator logout(LogoutApiRequest logoutApiRequest, Action<JObject> callback)
+    public IEnumerator logout(LogoutApiRequest logoutApiRequest, Action<JObject> callback, string storageServerUrl = null)
     {
-        var request = PostJson($"{sessionHosts[0]}/store/set", new JObject
+        var request = PostJson($"{ResolveStoreHosts(storageServerUrl)[0]}/store/set", new JObject
         {
             ["key"] = (logoutApiRequest.key ?? "").ToLowerInvariant(),
             ["data"] = logoutApiRequest.data,
@@ -207,7 +208,19 @@ public class Web3AuthApi
         return $"({request.responseCode}): {request.downloadHandler?.text ?? request.error}";
     }
 
-    public IEnumerator createSession(LogoutApiRequest logoutApiRequest, Action<JObject> callback)
+    static List<string> ResolveStoreHosts(string storageServerUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(storageServerUrl))
+        {
+            var root = storageServerUrl.TrimEnd('/');
+            if (!root.EndsWith("/v2", StringComparison.OrdinalIgnoreCase))
+                root += "/v2";
+            return new List<string> { root };
+        }
+        return new List<string>(sessionHosts);
+    }
+
+    public IEnumerator createSession(LogoutApiRequest logoutApiRequest, Action<JObject> callback, string storageServerUrl = null)
     {
         var body = new JObject
         {
@@ -219,8 +232,9 @@ public class Web3AuthApi
             ["namespace"] = logoutApiRequest.sessionNamespace ?? ""
         };
 
-        var request = PostJson($"{sessionHosts[0]}/store/set", body, logoutApiRequest.allowedOrigin);
-        Debug.Log($"Web3Auth createSession store/set origin={logoutApiRequest.allowedOrigin} namespace={logoutApiRequest.sessionNamespace ?? ""}");
+        var storeUrl = $"{ResolveStoreHosts(storageServerUrl)[0]}/store/set";
+        var request = PostJson(storeUrl, body, logoutApiRequest.allowedOrigin);
+        Debug.Log($"Web3Auth createSession POST {storeUrl} origin={logoutApiRequest.allowedOrigin} namespace={logoutApiRequest.sessionNamespace ?? ""}");
 
         yield return request.SendWebRequest();
 
@@ -236,10 +250,18 @@ public class Web3AuthApi
         }
     }
 
-    public IEnumerator fetchProjectConfig(string project_id, string network, string build_env, Action<ProjectConfigResponse> callback)
+    public IEnumerator fetchProjectConfig(string project_id, string network, string build_env, Action<ProjectConfigResponse> callback, string dashboardBaseUrl = null, string aaProvider = null)
     {
-        string baseUrl = SIGNER_MAP[network];
-        var requestURL = $"{baseUrl}/api/v2/configuration?project_id={project_id}&network={network}&build_env={build_env}";
+        string baseUrl = dashboardBaseUrl;
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            if (!SIGNER_MAP.TryGetValue(network ?? "", out baseUrl))
+                baseUrl = SIGNER_MAP["sapphire_mainnet"];
+        }
+        baseUrl = baseUrl.TrimEnd('/');
+        var requestURL = $"{baseUrl}/api/v2/configuration?project_id={UnityWebRequest.EscapeURL(project_id)}&network={UnityWebRequest.EscapeURL(network)}&build_env={UnityWebRequest.EscapeURL(build_env)}";
+        if (!string.IsNullOrEmpty(aaProvider))
+            requestURL += "&aa_provider=" + UnityWebRequest.EscapeURL(aaProvider);
 
         var request = UnityWebRequest.Get(requestURL);
 

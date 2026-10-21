@@ -10,5 +10,6 @@
     public Curve curve { get; set; } = Curve.SECP256K1;
     public string dappUrl { get; set; }
     public string? loginHint { get; set; }
-    
+    public string recordId { get; set; }
+    public string loginSource { get; set; }
 }

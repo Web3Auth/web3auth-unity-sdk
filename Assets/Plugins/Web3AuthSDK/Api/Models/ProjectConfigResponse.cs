@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Plugins.Web3AuthSDK.Types;
 
 public class WhitelistResponse
@@ -21,4 +23,27 @@ public class ProjectConfigResponse
     public bool wallet_connect_enabled { get; set; }
     public string walletConnectProjectId { get; set; }
     public WhiteLabelData whitelabel { get; set; }
+    public long? teamId { get; set; }
+    public MfaSettings mfaSettings { get; set; }
+    public JToken externalWalletAuth { get; set; }
+
+    [JsonProperty("userDataIncludedInToken")]
+    public bool? userDataIncludedInToken
+    {
+        set
+        {
+            if (value.HasValue)
+                userDataInIdToken = value;
+        }
+    }
+
+    [JsonProperty("walletUi")]
+    public WalletUiConfig walletUi
+    {
+        set
+        {
+            if (value != null)
+                walletUiConfig = value;
+        }
+    }
 }

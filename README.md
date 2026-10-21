@@ -39,6 +39,19 @@ Download [.unitypackage](https://github.com/Web3Auth/web3auth-unity-sdk/releases
 
 ![Json Dot Net Error](./Images/JsonDotNet%20Error.png)
 
+## Auth v11
+
+This SDK talks to Auth **v11** and Wallet Services **v6**.
+
+- Production and staging auth URLs use `/v11`. `TESTING` stays unversioned (`https://develop-auth.web3auth.io`).
+- Wallet URLs use `/v6` (`https://wallet.web3auth.io/v6`). Wallet launch sends citadel `sessionId`, `accessToken`, `refreshToken`, and `idToken`.
+- Sessions are restored with citadel `POST /v1/auth/session`, not `session.web3auth.io/v2/store/get`. Login still stages its payload on the session-service storage URL.
+- `/start` includes `recordId` and `loginSource` (`web3auth-unity`).
+- `MFALevel` is `OPTIONAL`, `MANDATORY`, or `NONE`. The old `DEFAULT` value is removed.
+- `WhiteLabelData` accepts `tncLink` and `privacyPolicy` (plain URL strings).
+- `getAccessToken()`, `getIdentityToken()`, and `refreshSession()` read the stored citadel tokens. `logout()` calls citadel `/v1/auth/logout` and clears them.
+- When `sessionTime` is left unset, the project-config value is used (otherwise 30 days).
+
 ## 🌟 Configuration
 
 To get started, open a sample scene `Web3AuthSample` inside `Assets/Plugins/Web3AuthSDK/Samples/Web3AuthSample.scene`
